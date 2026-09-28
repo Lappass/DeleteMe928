@@ -11,7 +11,20 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float jumpPreloadTimerMax;
     [SerializeField] private float coyoteTimerMax;
     [SerializeField] private LayerMask jumpableMask;
+    [SerializeField] private float groundAcceleration = 80f;
+    [SerializeField] private float airAcceleration = 8f;
+    [SerializeField] private float dashSpeed = 22f;
+    [SerializeField] private float dashDuration = 0.18f;
+    [SerializeField] private float wallRunSpeed = 12f;
+    [SerializeField] private float wallRunMinSpeed = 6f;
+    [SerializeField] private float wallStickSpeed = 3f;
+    [SerializeField] private float wallRunMaxTime = 1.6f;
+    [SerializeField] private float wallJumpOutSpeed = 8f;
     private const float GroundedVelocity = -2f; //small downward velocity while grounded so the player doesn't hover
+    private const float WallRunMaxFallSpeed = 12f; //fall off the wall once downward speed gets this high
+    private const float WallNormalMaxY = 0.25f; //steeper than about 75 degrees
+    private const float WallProbePadding = 0.4f;
+    private const float WallRunGravityStart = 0.1f;
     private float jumpHeldTimer;
     private float jumpPreloadTimer;
     private float coyoteTimer;
@@ -21,12 +34,23 @@ public class PlayerMovement : MonoBehaviour
     private Vector3 velocity;
     private Vector3 velocityInput;
     private Vector3 velocityPhysics;
+    private Vector3 velocityHorizontal;
+    private float inputInfluence = 1f;
+    private int dashCharges = 1;
+    private float dashTimer;
+    private bool dashing;
+    private bool wallRunning;
+    private float wallRunTimer;
+    private Vector3 wallNormal;
+    private Collider wallCollider;
+    private Collider ignoredWall;
     private CharacterController controller;
     private Controls controls;
     private Vector3 startPosition;
     private Quaternion startRotation;
 
-
+    public bool IsWallRunning => wallRunning;
+    public Vector3 WallNormal => wallNormal;
 
     void Start()
     {
@@ -50,18 +74,31 @@ public class PlayerMovement : MonoBehaviour
         controller.enabled = true;
 
         velocityPhysics = Vector3.zero;
+        velocityHorizontal = Vector3.zero;
+        velocityInput = Vector3.zero;
         jumping = false;
         jumpHeldTimer = 0;
         jumpPreloadTimer = 0;
         coyoteTimer = 0;
+        inputInfluence = 1f;
+        dashing = false;
+        dashTimer = 0f;
+        dashCharges = 1;
+        wallRunning = false;
+        wallRunTimer = 0f;
+        wallNormal = Vector3.zero;
+        wallCollider = null;
+        ignoredWall = null;
     }
 
     void Update()
     {
-        //
         if (controls.JumpTriggered()) //if jump button is pressed
         {
-            if (isGrounded) { //regular jump
+            if (wallRunning) { //kick off the wall before a normal jump can consume the press
+                WallKick();
+            }
+            else if (isGrounded) { //regular jump
                 BeginJump();
             }
             else if (coyoteTimer > 0) { //coyote time jump
@@ -71,12 +108,16 @@ public class PlayerMovement : MonoBehaviour
                 jumpPreloadTimer = jumpPreloadTimerMax;
             }
         }
-        
+
+        if (controls.SprintTriggered()) {
+            TryDash();
+        }
+
         //lower timers at the end of each frame
         jumpPreloadTimer -= Time.deltaTime;
         coyoteTimer -= Time.deltaTime;
     }
-    
+
     void FixedUpdate()
     {
         // --isGrounded logic--
@@ -91,9 +132,40 @@ public class PlayerMovement : MonoBehaviour
         if (isGrounded && velocityPhysics.y <= 0) {
             velocityPhysics.y = GroundedVelocity;
         }
+        if (isGrounded && wallRunning) {
+            EndWallRun();
+            ignoredWall = null; //landing clears the one-wall lockout
+        }
 
-        // --gravity logic-- only apply gravity if you are not jumping or if you are jumping but the jump button is not being held down
-        if (jumping && jumpHeldTimer < jumpHeldTimerMax) {
+        TickDash();
+
+        // --movement input-- wish direction, scaled by move speed. Momentum code decides how fast we approach it
+        Vector2 moveInput = Vector2.ClampMagnitude(controls.MoveInput(), 1f);
+        velocityInput = (transform.right * moveInput.x + transform.forward * moveInput.y) * moveSpeed;
+
+        if (wallRunning && !ConfirmWall()) {
+            EndWallRun();
+        }
+        if (!dashing && !wallRunning && !isGrounded && HorizontalSpeed() >= wallRunMinSpeed) {
+            TryStartWallRun();
+        }
+
+        // --gravity logic-- dash stays flat; wall run eases gravity back in; otherwise the usual jump-hold
+        if (dashing) {
+            //leave vertical speed unchanged so the dash does not curve
+        }
+        else if (wallRunning) {
+            float blend = Mathf.Clamp01(wallRunTimer / wallRunMaxTime);
+            ApplyGravity(Mathf.Lerp(WallRunGravityStart, 1f, blend));
+            wallRunTimer += Time.fixedDeltaTime;
+            if (wallRunTimer >= wallRunMaxTime || velocityPhysics.y < -WallRunMaxFallSpeed) {
+                EndWallRun();
+            }
+            else {
+                ApplyWallRunVelocity();
+            }
+        }
+        else if (jumping && jumpHeldTimer < jumpHeldTimerMax) {
             if (controls.JumpHeld()) {
                 jumpHeldTimer += Time.fixedDeltaTime;
             }
@@ -105,15 +177,187 @@ public class PlayerMovement : MonoBehaviour
             ApplyGravity();
         }
 
-        // --movement logic--
-        Vector2 moveInput = Vector2.ClampMagnitude(controls.MoveInput(), 1f); //get move input vector and clamp to 1
-        velocityInput = transform.right * moveInput.x + transform.forward * moveInput.y; //get input velocity
-  
-        velocityInput *= moveSpeed; //scale by move speed
-        
-        velocity = velocityInput + velocityPhysics; //combine input velocity and physics velocity
-        
-        controller.Move(velocity * Time.fixedDeltaTime); //move the player based on the combined velocity
+        if (!dashing && !wallRunning) {
+            ApplyHorizontalAcceleration();
+        }
+
+        velocity = velocityHorizontal;
+        velocity.y = velocityPhysics.y;
+        if (wallRunning) {
+            velocity += -wallNormal * wallStickSpeed; //push into the wall so the probe keeps hitting it
+        }
+
+        controller.Move(velocity * Time.fixedDeltaTime);
+    }
+
+    void ApplyHorizontalAcceleration()
+    {
+        float accel = isGrounded ? groundAcceleration : airAcceleration;
+        Vector3 wish = velocityInput * inputInfluence;
+        velocityHorizontal = Vector3.MoveTowards(velocityHorizontal, wish, accel * Time.fixedDeltaTime);
+        velocityHorizontal.y = 0f;
+    }
+
+    float HorizontalSpeed()
+    {
+        return new Vector3(velocityHorizontal.x, 0f, velocityHorizontal.z).magnitude;
+    }
+
+    void TickDash()
+    {
+        if (!dashing) {
+            return;
+        }
+        dashTimer -= Time.fixedDeltaTime;
+        if (dashTimer > 0f) {
+            return;
+        }
+        dashing = false;
+        inputInfluence = 1f;
+        if (isGrounded) {
+            dashCharges = 1; //a dash that never left the ground is ready again once it finishes
+        }
+    }
+
+    void TryDash()
+    {
+        if (dashCharges <= 0 || wallRunning || dashing) {
+            return;
+        }
+
+        Vector2 moveInput = Vector2.ClampMagnitude(controls.MoveInput(), 1f);
+        Vector3 dir = transform.right * moveInput.x + transform.forward * moveInput.y;
+        if (dir.sqrMagnitude < 0.01f) {
+            dir = transform.forward; //no move input: dash the way the body is facing
+        }
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 0.0001f) {
+            return;
+        }
+        dir.Normalize();
+
+        velocityHorizontal = dir * dashSpeed;
+        inputInfluence = 0f;
+        dashTimer = dashDuration;
+        dashing = true;
+        dashCharges--;
+    }
+
+    void TryStartWallRun()
+    {
+        if (!TryFindWall(out RaycastHit hit)) {
+            return;
+        }
+
+        wallRunning = true;
+        wallRunTimer = 0f;
+        wallNormal = hit.normal;
+        wallCollider = hit.collider;
+        inputInfluence = 0f;
+        dashCharges = 1; //a new wall refills the air dash
+    }
+
+    void ApplyWallRunVelocity()
+    {
+        Vector3 along = WallAlong(wallNormal, velocityHorizontal);
+        float speed = Mathf.Max(HorizontalSpeed(), wallRunSpeed);
+        velocityHorizontal = along * speed;
+    }
+
+    /// <summary>
+    /// Pop off the wall. Ignores canJump so a wall kick still works when ground jump is disabled.
+    /// </summary>
+    void WallKick()
+    {
+        Vector3 along = WallAlong(wallNormal, velocityHorizontal);
+        float alongSpeed = HorizontalSpeed() * 0.5f;
+        velocityHorizontal = wallNormal * wallJumpOutSpeed + along * alongSpeed;
+        velocityHorizontal.y = 0f;
+        velocityPhysics.y = jumpStartingVelocity;
+        jumpHeldTimer = 0f;
+        coyoteTimer = 0f;
+        jumpPreloadTimer = 0f;
+        jumping = true;
+        dashCharges = 1;
+        EndWallRun();
+    }
+
+    void EndWallRun()
+    {
+        if (!wallRunning) {
+            return;
+        }
+        wallRunning = false;
+        wallRunTimer = 0f;
+        ignoredWall = wallCollider; //same wall cannot be grabbed again until the next landing
+        wallCollider = null;
+        if (!dashing) {
+            inputInfluence = 1f;
+        }
+    }
+
+    bool ConfirmWall()
+    {
+        Vector3 origin = transform.position + controller.center;
+        float distance = controller.radius + WallProbePadding;
+        if (!Physics.Raycast(origin, -wallNormal, out RaycastHit hit, distance, jumpableMask, QueryTriggerInteraction.Ignore)) {
+            return false;
+        }
+        if (hit.collider != wallCollider || Mathf.Abs(hit.normal.y) >= WallNormalMaxY) {
+            return false;
+        }
+        wallNormal = hit.normal;
+        return true;
+    }
+
+    bool TryFindWall(out RaycastHit wallHit)
+    {
+        float distance = controller.radius + WallProbePadding;
+        Vector3 origin = transform.position + controller.center;
+        bool left = CastWall(origin, -transform.right, distance, out RaycastHit leftHit);
+        bool right = CastWall(origin, transform.right, distance, out RaycastHit rightHit);
+        if (left && right) {
+            wallHit = leftHit.distance <= rightHit.distance ? leftHit : rightHit;
+            return true;
+        }
+        if (left) {
+            wallHit = leftHit;
+            return true;
+        }
+        if (right) {
+            wallHit = rightHit;
+            return true;
+        }
+        wallHit = default;
+        return false;
+    }
+
+    bool CastWall(Vector3 origin, Vector3 direction, float distance, out RaycastHit hit)
+    {
+        if (Physics.Raycast(origin, direction, out hit, distance, jumpableMask, QueryTriggerInteraction.Ignore)) {
+            if (Mathf.Abs(hit.normal.y) < WallNormalMaxY && hit.collider != ignoredWall) {
+                return true;
+            }
+        }
+        hit = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Horizontal direction along the wall, chosen to match the way the player is already moving
+    /// </summary>
+    Vector3 WallAlong(Vector3 normal, Vector3 reference)
+    {
+        Vector3 along = Vector3.Cross(normal, Vector3.up);
+        along.y = 0f;
+        if (along.sqrMagnitude < 0.0001f) {
+            return Vector3.zero;
+        }
+        along.Normalize();
+        if (Vector3.Dot(reference, along) < 0f) {
+            along = -along;
+        }
+        return along;
     }
 
     void ApplyGravity(float gravityMultiplier = 1f)
@@ -133,7 +377,7 @@ public class PlayerMovement : MonoBehaviour
         if (!canJump) {
             return;
         }
-        
+
         //if jumping, set the physics y velocity to the jump starting velocity, reset timers, and set jumping to true
         velocityPhysics.y = jumpStartingVelocity;
         jumpHeldTimer = 0;
@@ -141,15 +385,17 @@ public class PlayerMovement : MonoBehaviour
         jumpPreloadTimer = 0;
         jumping = true;
     }
-    
+
     void EndJump(){
         jumping = false;
     }
-    
+
     /// <summary>
     /// Called when you first start touching the ground
     /// </summary>
     void GroundEnter() {
+        dashCharges = 1;
+        ignoredWall = null;
         //if you are jumping and you touch the ground, end the jump
         if (jumping) {
             EndJump();
@@ -176,7 +422,7 @@ public class PlayerMovement : MonoBehaviour
             coyoteTimer = coyoteTimerMax; //start the coyote timer if you leave the ground and are not jumping
         }
     }
-    
+
     /// <summary>
     /// Cast raycasts from the middle of the player and from 8 corners to test if the player is on the ground
     /// </summary>
@@ -191,7 +437,7 @@ public class PlayerMovement : MonoBehaviour
         //test if any of the 8 corners of the player is touching the ground
         float halfWidth = transform.localScale.x * .5f;
         float diagonalWidth = transform.localScale.x * .35f;
-        
+
         //test the 4 side of the player
         if (RaycastTest(transform.position + (transform.right * halfWidth), rayLength)) {
             return true;
@@ -218,9 +464,9 @@ public class PlayerMovement : MonoBehaviour
         if (RaycastTest(transform.position + (-transform.right * diagonalWidth) + (-transform.forward * diagonalWidth), rayLength)) {
             return true;
         }
-        
+
         //call leave ground results if we were grounded and now we're not
-        if (isGrounded) { 
+        if (isGrounded) {
             GroundExit();
         }
 
