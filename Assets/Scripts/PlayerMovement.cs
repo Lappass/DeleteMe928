@@ -11,6 +11,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float jumpPreloadTimerMax;
     [SerializeField] private float coyoteTimerMax;
     [SerializeField] private LayerMask jumpableMask;
+    private const float GroundedVelocity = -2f; //small downward velocity while grounded so the player doesn't hover
     private float jumpHeldTimer;
     private float jumpPreloadTimer;
     private float coyoteTimer;
@@ -65,7 +66,7 @@ public class PlayerMovement : MonoBehaviour
         }
         wasGroundedLastFrame = isGrounded;
         if (isGrounded && velocityPhysics.y <= 0) {
-            velocityPhysics.y = 0;
+            velocityPhysics.y = GroundedVelocity;
         }
 
         // --gravity logic-- only apply gravity if you are not jumping or if you are jumping but the jump button is not being held down
@@ -98,8 +99,8 @@ public class PlayerMovement : MonoBehaviour
         if (velocityPhysics.y < -fallSpeedMax) { //make sure fall speed never exceeds fallSpeedMax
             velocityPhysics.y = -fallSpeedMax;
         }
-        if (isGrounded && velocityPhysics.y < 0) { //if grounded, reset y velocity to 0
-            velocityPhysics.y = 0;
+        if (isGrounded && velocityPhysics.y < 0) { //if grounded, keep a small downward velocity so the player stays snapped to the ground
+            velocityPhysics.y = GroundedVelocity;
         }
     }
 
@@ -157,7 +158,7 @@ public class PlayerMovement : MonoBehaviour
     /// Cast raycasts from the middle of the player and from 8 corners to test if the player is on the ground
     /// </summary>
     bool RaycastTouchesGround() {
-        float rayLength = controller.height * .6f;
+        float rayLength = controller.height * .5f + controller.skinWidth + .05f; //reach just past the bottom of the capsule
 
         //test if the middle of the player is touching the ground
         if (RaycastTest(transform.position, rayLength)) {
