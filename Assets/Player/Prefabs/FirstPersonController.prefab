@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 2010144662447915982}
   - component: {fileID: 3776234652260076536}
   - component: {fileID: 2058685660269960860}
+  - component: {fileID: 2000000200}
   m_Layer: 0
   m_Name: FirstPersonController
   m_TagString: Untagged
@@ -426,3 +427,16 @@ Transform:
   - {fileID: 5357103715847353554}
   m_Father: {fileID: 9064379890283265927}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2000000200
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1821278238164118434}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8998cbf3acee43ec9bb57b84a6a9d6cc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FloatExperience
+  seed: 928

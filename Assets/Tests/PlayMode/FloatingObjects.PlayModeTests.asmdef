@@ -1,0 +1,5 @@
+{
+    "name": "FloatingObjects.PlayModeTests",
+    "references": ["FloatingObjects.Core"],
+    "optionalUnityReferences": ["TestAssemblies"]
+}

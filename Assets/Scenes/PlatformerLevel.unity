@@ -3031,6 +3031,210 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1724361146}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &2000000100
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2000000101}
+  - component: {fileID: 2000000102}
+  m_Layer: 0
+  m_Name: FloatArea_Early
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2000000101
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2000000100}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 7, y: 4, z: 11}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2000000102
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2000000100}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 479e59bc9d7345eebb1ab8b042bdaf0a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FloatArea
+  size: {x: 24, y: 10, z: 20}
+  platformRoot: {fileID: 1388114534}
+  targetCount: 8
+  seed: 928
+  replenishDelay: 2
+  attemptsPerSpawn: 30
+  diameterRange: {x: 0.6, y: 1.8}
+  heightAbovePlatform: {x: 0.8, y: 1.8}
+  playerExclusionRadius: 2
+  neighborDistance: 4
+  clearance: 0.12
+  floatMaterial: {fileID: 2100000, guid: d768ed9c7f52412580288c3ffbc5ade9, type: 2}
+  bobAmplitude: 0.12
+  bobSpeed: 1.4
+  effects:
+    verticalHorizontalSpeed: {x: 2, y: 4}
+    verticalUpSpeed: {x: 8, y: 11}
+    horizontalSpeed: {x: 6, y: 9}
+    horizontalUpSpeed: {x: 4, y: 6}
+    lowGravityMultiplier: {x: 0.25, y: 0.55}
+    lowGravityDuration: {x: 3, y: 5}
+    buoyancyAcceleration: {x: 2, y: 4}
+    buoyancyDuration: {x: 2, y: 3}
+    contactInterval: 0.3
+--- !u!1 &2000000110
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2000000111}
+  - component: {fileID: 2000000112}
+  m_Layer: 0
+  m_Name: FloatArea_Middle
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2000000111
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2000000110}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 7, y: 5, z: 28}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2000000112
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2000000110}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 479e59bc9d7345eebb1ab8b042bdaf0a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FloatArea
+  size: {x: 24, y: 10, z: 16}
+  platformRoot: {fileID: 1388114534}
+  targetCount: 8
+  seed: 929
+  replenishDelay: 2
+  attemptsPerSpawn: 30
+  diameterRange: {x: 0.6, y: 1.8}
+  heightAbovePlatform: {x: 0.8, y: 1.8}
+  playerExclusionRadius: 2
+  neighborDistance: 4
+  clearance: 0.12
+  floatMaterial: {fileID: 2100000, guid: d768ed9c7f52412580288c3ffbc5ade9, type: 2}
+  bobAmplitude: 0.12
+  bobSpeed: 1.4
+  effects:
+    verticalHorizontalSpeed: {x: 2, y: 4}
+    verticalUpSpeed: {x: 8, y: 11}
+    horizontalSpeed: {x: 6, y: 9}
+    horizontalUpSpeed: {x: 4, y: 6}
+    lowGravityMultiplier: {x: 0.25, y: 0.55}
+    lowGravityDuration: {x: 3, y: 5}
+    buoyancyAcceleration: {x: 2, y: 4}
+    buoyancyDuration: {x: 2, y: 3}
+    contactInterval: 0.3
+--- !u!1 &2000000120
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2000000121}
+  - component: {fileID: 2000000122}
+  m_Layer: 0
+  m_Name: FloatArea_Late
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2000000121
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2000000120}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 10, y: 7, z: 44}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2000000122
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2000000120}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 479e59bc9d7345eebb1ab8b042bdaf0a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FloatArea
+  size: {x: 26, y: 12, z: 20}
+  platformRoot: {fileID: 1388114534}
+  targetCount: 8
+  seed: 930
+  replenishDelay: 2
+  attemptsPerSpawn: 30
+  diameterRange: {x: 0.6, y: 1.8}
+  heightAbovePlatform: {x: 0.8, y: 1.8}
+  playerExclusionRadius: 2
+  neighborDistance: 4
+  clearance: 0.12
+  floatMaterial: {fileID: 2100000, guid: d768ed9c7f52412580288c3ffbc5ade9, type: 2}
+  bobAmplitude: 0.12
+  bobSpeed: 1.4
+  effects:
+    verticalHorizontalSpeed: {x: 2, y: 4}
+    verticalUpSpeed: {x: 8, y: 11}
+    horizontalSpeed: {x: 6, y: 9}
+    horizontalUpSpeed: {x: 4, y: 6}
+    lowGravityMultiplier: {x: 0.25, y: 0.55}
+    lowGravityDuration: {x: 3, y: 5}
+    buoyancyAcceleration: {x: 2, y: 4}
+    buoyancyDuration: {x: 2, y: 3}
+    contactInterval: 0.3
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -3039,3 +3243,6 @@ SceneRoots:
   - {fileID: 832575519}
   - {fileID: 1390623875}
   - {fileID: 296162992}
+  - {fileID: 2000000101}
+  - {fileID: 2000000111}
+  - {fileID: 2000000121}

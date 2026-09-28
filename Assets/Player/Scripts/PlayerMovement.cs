@@ -11,6 +11,17 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float jumpPreloadTimerMax;
     [SerializeField] private float coyoteTimerMax;
     [SerializeField] private LayerMask jumpableMask;
+    [Header("Floating object effects")]
+    [SerializeField, Min(0)] private float externalHorizontalDeceleration = 6f;
+    [SerializeField, Min(1)] private float externalSpeedMax = 40f;
+    [SerializeField, Min(0)] private float buoyancyUpSpeedMax = 3f;
+    private float gravityEffectRemaining;
+    private float gravityMultiplier = 1f;
+    private float ignoreGroundUntil;
+    public float BaseGravity => Mathf.Max(.01f, gravity);
+    public float GravityEffectRemaining => gravityEffectRemaining;
+    public float GravityMultiplier => gravityMultiplier;
+    public Vector3 ExternalVelocity => velocityPhysics;
     private const float GroundedVelocity = -2f; //small downward velocity while grounded so the player doesn't hover
     private float jumpHeldTimer;
     private float jumpPreloadTimer;
@@ -49,9 +60,48 @@ public class PlayerMovement : MonoBehaviour
         transform.SetPositionAndRotation(startPosition, startRotation);
         controller.enabled = true;
 
+        ClearExternalEffects();
+        isGrounded = false;
+        wasGroundedLastFrame = false;
+    }
+
+    public void ApplyLaunch(Vector3 launchVelocity)
+    {
+        velocityPhysics = Vector3.ClampMagnitude(launchVelocity, externalSpeedMax);
+        CancelJumpAssist();
+        isGrounded = false;
+        ignoreGroundUntil = Time.time + .12f;
+    }
+
+    public void ApplyGravityEffect(float multiplier, float duration)
+    {
+        gravityMultiplier = Mathf.Clamp(multiplier, -2f, 2f);
+        gravityEffectRemaining = Mathf.Max(0, duration);
+        if (gravityEffectRemaining == 0) gravityMultiplier = 1;
+        CancelJumpAssist();
+        if (gravityMultiplier < 0)
+        {
+            // Catch a fall as well as releasing ground adhesion, making this a
+            // readable lift effect even when collected during a fast descent.
+            velocityPhysics.y = Mathf.Clamp(velocityPhysics.y, 0, buoyancyUpSpeedMax);
+            isGrounded = false;
+        }
+    }
+
+    public void ClearExternalEffects()
+    {
         velocityPhysics = Vector3.zero;
+        gravityMultiplier = 1;
+        gravityEffectRemaining = 0;
+        ignoreGroundUntil = 0;
+        CancelJumpAssist();
+        GetComponent<FloatExperience>()?.ClearFeedback();
+    }
+
+    private void CancelJumpAssist()
+    {
         jumping = false;
-        jumpHeldTimer = 0;
+        jumpHeldTimer = jumpHeldTimerMax;
         jumpPreloadTimer = 0;
         coyoteTimer = 0;
     }
@@ -79,8 +129,14 @@ public class PlayerMovement : MonoBehaviour
     
     void FixedUpdate()
     {
+        if (gravityEffectRemaining > 0)
+        {
+            gravityEffectRemaining = Mathf.Max(0, gravityEffectRemaining - Time.fixedDeltaTime);
+            if (gravityEffectRemaining == 0) gravityMultiplier = 1;
+        }
         // --isGrounded logic--
-        isGrounded = RaycastTouchesGround();
+        isGrounded = Time.time >= ignoreGroundUntil && velocityPhysics.y <= 0 &&
+            gravityMultiplier >= 0 && RaycastTouchesGround();
         if (isGrounded && !wasGroundedLastFrame) {
             GroundEnter();
         }
@@ -93,7 +149,7 @@ public class PlayerMovement : MonoBehaviour
         }
 
         // --gravity logic-- only apply gravity if you are not jumping or if you are jumping but the jump button is not being held down
-        if (jumping && jumpHeldTimer < jumpHeldTimerMax) {
+        if (jumping && gravityEffectRemaining <= 0 && jumpHeldTimer < jumpHeldTimerMax) {
             if (controls.JumpHeld()) {
                 jumpHeldTimer += Time.fixedDeltaTime;
             }
@@ -102,7 +158,7 @@ public class PlayerMovement : MonoBehaviour
             }
         }
         else {
-            ApplyGravity();
+            ApplyGravity(gravityMultiplier);
         }
 
         // --movement logic--
@@ -111,9 +167,20 @@ public class PlayerMovement : MonoBehaviour
   
         velocityInput *= moveSpeed; //scale by move speed
         
+        if (gravityMultiplier < 0) velocityPhysics.y = Mathf.Min(velocityPhysics.y, buoyancyUpSpeedMax);
+        velocityPhysics = Vector3.ClampMagnitude(velocityPhysics, externalSpeedMax);
         velocity = velocityInput + velocityPhysics; //combine input velocity and physics velocity
         
-        controller.Move(velocity * Time.fixedDeltaTime); //move the player based on the combined velocity
+        CollisionFlags collisions = controller.Move(velocity * Time.fixedDeltaTime);
+        if ((collisions & CollisionFlags.Above) != 0 && velocityPhysics.y > 0)
+        {
+            velocityPhysics.y = 0;
+            jumpHeldTimer = jumpHeldTimerMax;
+        }
+        Vector3 horizontal = new Vector3(velocityPhysics.x, 0, velocityPhysics.z);
+        horizontal = Vector3.MoveTowards(horizontal, Vector3.zero, externalHorizontalDeceleration * Time.fixedDeltaTime);
+        velocityPhysics.x = horizontal.x;
+        velocityPhysics.z = horizontal.z;
     }
 
     void ApplyGravity(float gravityMultiplier = 1f)
@@ -122,7 +189,7 @@ public class PlayerMovement : MonoBehaviour
         if (velocityPhysics.y < -fallSpeedMax) { //make sure fall speed never exceeds fallSpeedMax
             velocityPhysics.y = -fallSpeedMax;
         }
-        if (isGrounded && velocityPhysics.y < 0) { //if grounded, keep a small downward velocity so the player stays snapped to the ground
+        if (isGrounded && gravityMultiplier >= 0 && velocityPhysics.y < 0) { //if grounded, keep a small downward velocity so the player stays snapped to the ground
             velocityPhysics.y = GroundedVelocity;
         }
     }
@@ -172,7 +239,7 @@ public class PlayerMovement : MonoBehaviour
     /// Called when you first stop touching the ground
     /// </summary>
     void GroundExit() {
-        if (!jumping) {
+        if (!jumping && Time.time >= ignoreGroundUntil && gravityMultiplier >= 0) {
             coyoteTimer = coyoteTimerMax; //start the coyote timer if you leave the ground and are not jumping
         }
     }
@@ -219,11 +286,6 @@ public class PlayerMovement : MonoBehaviour
             return true;
         }
         
-        //call leave ground results if we were grounded and now we're not
-        if (isGrounded) { 
-            GroundExit();
-        }
-
         //if we are not touching the ground, return false
         return false;
     }

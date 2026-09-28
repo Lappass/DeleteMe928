@@ -1,0 +1,5 @@
+{
+    "name": "FloatingObjects.Core",
+    "rootNamespace": "FloatingObjects",
+    "noEngineReferences": true
+}

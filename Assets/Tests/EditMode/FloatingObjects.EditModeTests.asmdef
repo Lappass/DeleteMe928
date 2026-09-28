@@ -1,0 +1,6 @@
+{
+    "name": "FloatingObjects.EditModeTests",
+    "references": ["FloatingObjects.Core"],
+    "includePlatforms": ["Editor"],
+    "optionalUnityReferences": ["TestAssemblies"]
+}
