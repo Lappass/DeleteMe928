@@ -23,14 +23,37 @@ public class PlayerMovement : MonoBehaviour
     private Vector3 velocityPhysics;
     private CharacterController controller;
     private Controls controls;
+    private Vector3 startPosition;
+    private Quaternion startRotation;
 
-    
-    
+
+
     void Start()
     {
         //get the character controller and controls components
         controller = GetComponent<CharacterController>();
         controls = GetComponent<Controls>();
+
+        //remember where the player started so they can be sent back there
+        startPosition = transform.position;
+        startRotation = transform.rotation;
+    }
+
+    /// <summary>
+    /// Teleport the player back to their starting position and clear any momentum
+    /// </summary>
+    public void ReturnToStart()
+    {
+        //the character controller overrides position changes while enabled, so turn it off while teleporting
+        controller.enabled = false;
+        transform.SetPositionAndRotation(startPosition, startRotation);
+        controller.enabled = true;
+
+        velocityPhysics = Vector3.zero;
+        jumping = false;
+        jumpHeldTimer = 0;
+        jumpPreloadTimer = 0;
+        coyoteTimer = 0;
     }
 
     void Update()
