@@ -31,6 +31,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float wallStickSpeed = 3f;
     [SerializeField] private float wallRunMaxTime = 1.6f;
     [SerializeField] private float wallJumpOutSpeed = 8f;
+    [SerializeField] private AudioClip dashSound;
     private const float GroundedVelocity = -2f; //small downward velocity while grounded so the player doesn't hover
     private const float WallRunMaxFallSpeed = 12f; //fall off the wall once downward speed gets this high
     private const float WallNormalMaxY = 0.25f; //steeper than about 75 degrees
@@ -57,6 +58,7 @@ public class PlayerMovement : MonoBehaviour
     private Collider ignoredWall;
     private CharacterController controller;
     private Controls controls;
+    private AudioSource dashSource;
     private Vector3 startPosition;
     private Quaternion startRotation;
 
@@ -68,6 +70,12 @@ public class PlayerMovement : MonoBehaviour
         //get the character controller and controls components
         controller = GetComponent<CharacterController>();
         controls = GetComponent<Controls>();
+        dashSource = GetComponent<AudioSource>();
+        if (dashSource == null) {
+            dashSource = gameObject.AddComponent<AudioSource>();
+        }
+        dashSource.playOnAwake = false;
+        dashSource.spatialBlend = 0f; //keep the dash sound full volume on the player
 
         //remember where the player started so they can be sent back there
         startPosition = transform.position;
@@ -316,6 +324,9 @@ public class PlayerMovement : MonoBehaviour
         dashTimer = dashDuration;
         dashing = true;
         dashCharges--;
+        if (dashSound != null) {
+            dashSource.PlayOneShot(dashSound);
+        }
     }
 
     void TryStartWallRun()

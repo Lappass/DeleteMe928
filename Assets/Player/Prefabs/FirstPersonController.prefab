@@ -63,6 +63,7 @@ MonoBehaviour:
   jumpableMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  dashSound: {fileID: 8300000, guid: 4842307130db6394996f4972eac08b74, type: 3}
 --- !u!114 &785873971517624810
 MonoBehaviour:
   m_ObjectHideFlags: 0
