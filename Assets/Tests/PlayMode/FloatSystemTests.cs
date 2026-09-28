@@ -151,6 +151,52 @@ public class FloatSystemTests
     }
 
     [UnityTest]
+    public IEnumerator DashAndFloatLaunchKeepSeparateMomentumAndResetOnRespawn()
+    {
+        Teleport(new Vector3(-10, 30, 0));
+        Call(player, "TryDash");
+        Assert.That((bool)player.GetType().GetField("dashing", Fields).GetValue(player), Is.True);
+        Call(player, "ApplyGravityEffect", .25f, 3f);
+        ((Behaviour)player).enabled = true;
+        yield return new WaitForSeconds(.06f);
+        Assert.That(Get<Vector3>(player, "ExternalVelocity").y, Is.LessThan(0), "Float gravity must still work during a dash.");
+        Call(player, "ApplyLaunch", new Vector3(8, 10, 0));
+        Assert.That((bool)player.GetType().GetField("dashing", Fields).GetValue(player), Is.False);
+        Assert.That((int)player.GetType().GetField("dashCharges", Fields).GetValue(player), Is.Zero);
+        Assert.That(Get<Vector3>(player, "ExternalVelocity"), Is.EqualTo(new Vector3(8, 10, 0)));
+        Assert.That(((Vector3)player.GetType().GetField("velocityHorizontal", Fields).GetValue(player)).magnitude,
+            Is.LessThanOrEqualTo(5.001f), "Old dash momentum must not stack onto the float launch.");
+        Call(player, "ReturnToStart");
+        Assert.That((Vector3)player.GetType().GetField("velocityHorizontal", Fields).GetValue(player), Is.EqualTo(Vector3.zero));
+        Assert.That((int)player.GetType().GetField("dashCharges", Fields).GetValue(player), Is.EqualTo(1));
+    }
+
+    [UnityTest]
+    public IEnumerator WallRunAndWallKickWorkAndBuoyancyReleasesTheWall()
+    {
+        var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        wall.transform.position = new Vector3(-11.1f, 10, 0);
+        wall.transform.localScale = new Vector3(1, 10, 30);
+        Teleport(new Vector3(-10, 10, 0));
+        Set(player, "velocityHorizontal", new Vector3(0, 0, 12));
+        Call(player, "TryStartWallRun");
+        Assert.That(Get<bool>(player, "IsWallRunning"), Is.True);
+        Call(player, "WallKick");
+        Assert.That(Get<bool>(player, "IsWallRunning"), Is.False);
+        Assert.That(Get<Vector3>(player, "ExternalVelocity").y, Is.GreaterThan(0));
+        Assert.That(((Vector3)player.GetType().GetField("velocityHorizontal", Fields).GetValue(player)).x, Is.GreaterThan(0));
+        Set(player, "ignoredWall", null);
+        Call(player, "TryStartWallRun");
+        Assert.That(Get<bool>(player, "IsWallRunning"), Is.True);
+        Call(player, "ApplyGravityEffect", -.12f, 2f);
+        Assert.That(Get<bool>(player, "IsWallRunning"), Is.False);
+        ((Behaviour)player).enabled = true;
+        yield return new WaitForSeconds(.1f);
+        Assert.That(Get<bool>(player, "IsWallRunning"), Is.False);
+        Object.Destroy(wall);
+    }
+
+    [UnityTest]
     public IEnumerator CrowdedAreasRetryWithoutOverlapsOrGrowingPool()
     {
         var obstacle = GameObject.CreatePrimitive(PrimitiveType.Cube);
