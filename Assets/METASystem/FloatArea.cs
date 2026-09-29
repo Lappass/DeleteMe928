@@ -12,8 +12,9 @@ public class FloatArea : MonoBehaviour
     [Header("Spawning")]
     [SerializeField, Min(.2f)] private float replenishDelay = 2;
     [SerializeField, Min(1)] private int attemptsPerSpawn = 30;
-    [SerializeField] private Vector2 diameterRange = new Vector2(.9f, 2.1f);
-    [SerializeField] private Vector2 heightAbovePlatform = new Vector2(.9f, 2.1f);
+    [SerializeField] private Vector2 diameterRange = new Vector2(.9f, 6.3f);
+    [SerializeField] private Vector2 heightAbovePlatform = new Vector2(.9f, 3.7f);
+    [SerializeField, Min(0)] private float previousPositionReuseDelay = 10f;
     [SerializeField, Min(0)] private float playerExclusionRadius = 2;
     [SerializeField, Min(0)] private float neighborDistance = 4;
     [SerializeField, Min(0)] private float clearance = .12f;
@@ -25,12 +26,22 @@ public class FloatArea : MonoBehaviour
     [SerializeField] private FloatEffectSettings effects = new FloatEffectSettings();
     private readonly List<Float> pool = new List<Float>();
     private readonly List<float> readyAt = new List<float>();
+    private readonly List<float> previousPositionEligibleAt = new List<float>();
+    private readonly List<PendingSpawn> pendingSpawns = new List<PendingSpawn>();
     private readonly List<Collider> surfaces = new List<Collider>();
     private FloatRandom random;
     private PlayerMovement[] players;
     private Material ownedMaterial;
     private float nextAttempt;
     private int slotCursor;
+
+    private struct PendingSpawn
+    {
+        public bool IsSet;
+        public int Appearance;
+        public FloatEffect Effect;
+        public float Diameter;
+    }
     public FloatEffectSettings Effects => effects;
     public float BobAmplitude => bobAmplitude;
     public float BobSpeed => bobSpeed;
@@ -74,6 +85,8 @@ public class FloatArea : MonoBehaviour
             instance.SetActive(false);
             pool.Add(item);
             readyAt.Add(0);
+            previousPositionEligibleAt.Add(0);
+            pendingSpawns.Add(default);
         }
         Physics.SyncTransforms();
         for (int i = 0; i < pool.Count; i++) TrySpawn(i);
@@ -97,18 +110,33 @@ public class FloatArea : MonoBehaviour
 
     private void TrySpawn(int slot)
     {
-        var sizes = new int[3];
-        var shapes = new int[3];
-        var effectCounts = new int[4];
-        foreach (Float item in pool)
-            if (item.IsAvailable) { sizes[item.Appearance / 3]++; shapes[item.Appearance % 3]++; effectCounts[(int)item.Effect]++; }
-        for (int attempt = 0; attempt < attemptsPerSpawn; attempt++)
+        PendingSpawn pending = pendingSpawns[slot];
+        if (!pending.IsSet)
         {
+            var sizes = new int[3];
+            var shapes = new int[3];
+            var effectCounts = new int[4];
+            foreach (Float item in pool)
+                if (item.IsAvailable) { sizes[item.Appearance / 3]++; shapes[item.Appearance % 3]++; effectCounts[(int)item.Effect]++; }
+            for (int i = 0; i < pendingSpawns.Count; i++)
+            {
+                if (i == slot || !pendingSpawns[i].IsSet) continue;
+                PendingSpawn other = pendingSpawns[i];
+                sizes[other.Appearance / 3]++;
+                shapes[other.Appearance % 3]++;
+                effectCounts[(int)other.Effect]++;
+            }
             int appearance = random.ChooseAppearance(sizes, shapes);
             FloatEffect effect = random.ChooseEffect(effectCounts);
             float step = (diameterRange.y - diameterRange.x) / 3;
             float diameter = random.Range(diameterRange.x + step * (appearance / 3), diameterRange.x + step * (appearance / 3 + 1));
-            float radius = diameter * .5f + bobAmplitude + clearance;
+            pending = new PendingSpawn { IsSet = true, Appearance = appearance, Effect = effect, Diameter = diameter };
+            pendingSpawns[slot] = pending;
+        }
+
+        float radius = pending.Diameter * .5f + bobAmplitude + clearance;
+        for (int attempt = 0; attempt < attemptsPerSpawn; attempt++)
+        {
             Collider surface = surfaces[random.Index(surfaces.Count)];
             if (surface == null || !surface.enabled || !surface.gameObject.activeInHierarchy) continue;
             Bounds bounds = surface.bounds;
@@ -118,13 +146,31 @@ public class FloatArea : MonoBehaviour
             float minimumHeight = Mathf.Max(heightAbovePlatform.x, radius + .02f);
             if (minimumHeight > heightAbovePlatform.y) continue;
             Vector3 position = hit.point + Vector3.up * random.Range(minimumHeight, heightAbovePlatform.y);
-            if (!ContainsSphere(position, radius) || pool[slot].IsPreviousPosition(position)) continue;
-            if (!SpaceAvailable(position, radius, appearance, effect)) continue;
-            pool[slot].Spawn(this, position, appearance, diameter, random, effect);
-            Physics.SyncTransforms();
+            bool mayReusePrevious = Time.time >= previousPositionEligibleAt[slot];
+            if (!ContainsSphere(position, radius) || (!mayReusePrevious && pool[slot].IsPreviousPosition(position))) continue;
+            if (!SpaceAvailable(position, radius, pending.Appearance, pending.Effect)) continue;
+            SpawnAt(slot, position, pending);
+            return;
+        }
+
+        // Keep the selected size and appearance while searching. After the retry
+        // delay, the previous anchor is a final option if it is still clear.
+        bool reuseDelayElapsed = Time.time >= previousPositionEligibleAt[slot];
+        if (reuseDelayElapsed && pool[slot].HasSpawnedBefore &&
+            ContainsSphere(pool[slot].Anchor, radius) &&
+            SpaceAvailable(pool[slot].Anchor, radius, pending.Appearance, pending.Effect))
+        {
+            SpawnAt(slot, pool[slot].Anchor, pending);
             return;
         }
         readyAt[slot] = Time.time + .5f;
+    }
+
+    private void SpawnAt(int slot, Vector3 position, PendingSpawn pending)
+    {
+        pool[slot].Spawn(this, position, pending.Appearance, pending.Diameter, random, pending.Effect);
+        pendingSpawns[slot] = default;
+        Physics.SyncTransforms();
     }
 
     private bool SpaceAvailable(Vector3 position, float radius, int appearance, FloatEffect effect)
@@ -158,7 +204,12 @@ public class FloatArea : MonoBehaviour
     public void Consumed(Float item)
     {
         int slot = pool.IndexOf(item);
-        if (slot >= 0) readyAt[slot] = Time.time + Mathf.Max(.2f, replenishDelay);
+        if (slot >= 0)
+        {
+            readyAt[slot] = Time.time + Mathf.Max(.2f, replenishDelay);
+            previousPositionEligibleAt[slot] = readyAt[slot] + previousPositionReuseDelay;
+            pendingSpawns[slot] = default;
+        }
     }
 
     private bool ContainsSphere(Vector3 position, float radius)
@@ -187,6 +238,7 @@ public class FloatArea : MonoBehaviour
     {
         targetCount = Mathf.Max(1, targetCount);
         attemptsPerSpawn = Mathf.Clamp(attemptsPerSpawn, 1, 30);
+        previousPositionReuseDelay = Mathf.Max(0, previousPositionReuseDelay);
         size = new Vector3(Mathf.Max(1, size.x), Mathf.Max(1, size.y), Mathf.Max(1, size.z));
         diameterRange.x = Mathf.Max(.1f, diameterRange.x);
         diameterRange.y = Mathf.Max(diameterRange.x, diameterRange.y);

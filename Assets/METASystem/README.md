@@ -1,6 +1,8 @@
 # Cloud Hop：马卡龙云朵与空中操控
 
-打开 `Assets/Scenes/PlatformerLevel.unity` 并进入 Play 模式。前、中、后三个 `FloatArea_*` 区域各补充至 8 朵云，默认每种颜色 2 朵。
+打开 `Assets/Scenes/PlatformerLevel.unity` 并进入 Play 模式。前、中、后三个 `FloatArea_*` 区域各最多 8 朵云；空间不足时允许少于 8 朵，不设数量下限。尺寸、形态与颜色配额同时统计已生成云朵及等待生成的预留项。
+
+补充失败时保留已选尺寸、形态和属性，每次最多尝试 30 个位置，稍后重试。消耗后先等待 2 秒开始补充，再寻找新位置 10 秒，之后才允许复用旧位置；旧位置仍必须通过完整的空间检查。`Previous Position Reuse Delay` 可在 Inspector 调整这 10 秒等待时间。
 
 | 颜色 | 属性 | 玩家可以决定的事 |
 | --- | --- | --- |
@@ -29,7 +31,7 @@ HUD 不接收鼠标点击，保留中央视野。
 
 云朵主体是程序生成的圆润多团网格，使用柔和卡通着色器。凸包触发器只负责接触判定，不是可站立平台。
 Particle System 负责低密度飘散小云团与触碰爆散，不承担主体或碰撞。每朵最多 24 个粒子；回收后清空，复用时重新着色。
-每朵默认大小范围 0.9–2.1 米，另有圆润、拉长、扁平的比例差异。
+Each cloud ranges from 0.9 m to 6.3 m: the smallest stays the same and the largest is 3× the previous maximum. Large clouds spawn higher to preserve ground clearance.
 
 - 选中 `FloatArea_*`，用 `Size` 与位置调整区域，`Platform Root` 指向 `Platforms`。建议区域 Transform 缩放保持 `(1,1,1)`。
 - `Target Count`、`Replenish Delay`、`Diameter Range`、`Height Above Platform` 控制密度与尺寸；空间不足会延后补充。

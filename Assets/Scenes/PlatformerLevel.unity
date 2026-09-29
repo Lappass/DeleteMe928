@@ -3138,8 +3138,9 @@ MonoBehaviour:
   seed: 928
   replenishDelay: 2
   attemptsPerSpawn: 30
-  diameterRange: {x: 0.9, y: 2.1}
-  heightAbovePlatform: {x: 0.9, y: 2.1}
+  diameterRange: {x: 0.9, y: 6.3}
+  heightAbovePlatform: {x: 0.9, y: 3.7}
+  previousPositionReuseDelay: 10
   playerExclusionRadius: 2
   neighborDistance: 4
   clearance: 0.12
@@ -3206,8 +3207,9 @@ MonoBehaviour:
   seed: 929
   replenishDelay: 2
   attemptsPerSpawn: 30
-  diameterRange: {x: 0.9, y: 2.1}
-  heightAbovePlatform: {x: 0.9, y: 2.1}
+  diameterRange: {x: 0.9, y: 6.3}
+  heightAbovePlatform: {x: 0.9, y: 3.7}
+  previousPositionReuseDelay: 10
   playerExclusionRadius: 2
   neighborDistance: 4
   clearance: 0.12
@@ -3274,8 +3276,9 @@ MonoBehaviour:
   seed: 930
   replenishDelay: 2
   attemptsPerSpawn: 30
-  diameterRange: {x: 0.9, y: 2.1}
-  heightAbovePlatform: {x: 0.9, y: 2.1}
+  diameterRange: {x: 0.9, y: 6.3}
+  heightAbovePlatform: {x: 0.9, y: 3.7}
+  previousPositionReuseDelay: 10
   playerExclusionRadius: 2
   neighborDistance: 4
   clearance: 0.12

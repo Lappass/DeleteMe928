@@ -26,6 +26,7 @@ public class Float : MonoBehaviour
     public FloatArea Area => area;
     public float ReservationRadius { get; private set; }
     public Vector3 Anchor => anchor;
+    public bool HasSpawnedBefore => hasSpawned;
     public bool IsAvailable => gameObject.activeSelf && consumedAt < 0;
     public bool IsPreviousPosition(Vector3 position) => hasSpawned && Vector3.Distance(lastSpawn, position) < 1f;
 
