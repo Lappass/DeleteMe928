@@ -3138,8 +3138,8 @@ MonoBehaviour:
   seed: 928
   replenishDelay: 2
   attemptsPerSpawn: 30
-  diameterRange: {x: 0.6, y: 1.8}
-  heightAbovePlatform: {x: 0.8, y: 1.8}
+  diameterRange: {x: 0.9, y: 2.1}
+  heightAbovePlatform: {x: 0.9, y: 2.1}
   playerExclusionRadius: 2
   neighborDistance: 4
   clearance: 0.12
@@ -3147,14 +3147,14 @@ MonoBehaviour:
   bobAmplitude: 0.12
   bobSpeed: 1.4
   effects:
-    verticalHorizontalSpeed: {x: 2, y: 4}
-    verticalUpSpeed: {x: 8, y: 11}
-    horizontalSpeed: {x: 6, y: 9}
-    horizontalUpSpeed: {x: 4, y: 6}
-    lowGravityMultiplier: {x: 0.25, y: 0.55}
-    lowGravityDuration: {x: 3, y: 5}
+    verticalHorizontalSpeed: {x: 1.5, y: 2.5}
+    verticalUpSpeed: {x: 10, y: 11}
+    horizontalSpeed: {x: 7, y: 8}
+    horizontalUpSpeed: {x: 6, y: 7}
+    lowGravityMultiplier: {x: 0.25, y: 0.35}
+    lowGravityDuration: {x: 4, y: 6}
     buoyancyAcceleration: {x: 2, y: 4}
-    buoyancyDuration: {x: 2, y: 3}
+    buoyancyDuration: {x: 3, y: 4}
     contactInterval: 0.3
 --- !u!1 &2000000110
 GameObject:
@@ -3206,8 +3206,8 @@ MonoBehaviour:
   seed: 929
   replenishDelay: 2
   attemptsPerSpawn: 30
-  diameterRange: {x: 0.6, y: 1.8}
-  heightAbovePlatform: {x: 0.8, y: 1.8}
+  diameterRange: {x: 0.9, y: 2.1}
+  heightAbovePlatform: {x: 0.9, y: 2.1}
   playerExclusionRadius: 2
   neighborDistance: 4
   clearance: 0.12
@@ -3215,14 +3215,14 @@ MonoBehaviour:
   bobAmplitude: 0.12
   bobSpeed: 1.4
   effects:
-    verticalHorizontalSpeed: {x: 2, y: 4}
-    verticalUpSpeed: {x: 8, y: 11}
-    horizontalSpeed: {x: 6, y: 9}
-    horizontalUpSpeed: {x: 4, y: 6}
-    lowGravityMultiplier: {x: 0.25, y: 0.55}
-    lowGravityDuration: {x: 3, y: 5}
+    verticalHorizontalSpeed: {x: 1.5, y: 2.5}
+    verticalUpSpeed: {x: 10, y: 11}
+    horizontalSpeed: {x: 7, y: 8}
+    horizontalUpSpeed: {x: 6, y: 7}
+    lowGravityMultiplier: {x: 0.25, y: 0.35}
+    lowGravityDuration: {x: 4, y: 6}
     buoyancyAcceleration: {x: 2, y: 4}
-    buoyancyDuration: {x: 2, y: 3}
+    buoyancyDuration: {x: 3, y: 4}
     contactInterval: 0.3
 --- !u!1 &2000000120
 GameObject:
@@ -3274,8 +3274,8 @@ MonoBehaviour:
   seed: 930
   replenishDelay: 2
   attemptsPerSpawn: 30
-  diameterRange: {x: 0.6, y: 1.8}
-  heightAbovePlatform: {x: 0.8, y: 1.8}
+  diameterRange: {x: 0.9, y: 2.1}
+  heightAbovePlatform: {x: 0.9, y: 2.1}
   playerExclusionRadius: 2
   neighborDistance: 4
   clearance: 0.12
@@ -3283,14 +3283,14 @@ MonoBehaviour:
   bobAmplitude: 0.12
   bobSpeed: 1.4
   effects:
-    verticalHorizontalSpeed: {x: 2, y: 4}
-    verticalUpSpeed: {x: 8, y: 11}
-    horizontalSpeed: {x: 6, y: 9}
-    horizontalUpSpeed: {x: 4, y: 6}
-    lowGravityMultiplier: {x: 0.25, y: 0.55}
-    lowGravityDuration: {x: 3, y: 5}
+    verticalHorizontalSpeed: {x: 1.5, y: 2.5}
+    verticalUpSpeed: {x: 10, y: 11}
+    horizontalSpeed: {x: 7, y: 8}
+    horizontalUpSpeed: {x: 6, y: 7}
+    lowGravityMultiplier: {x: 0.25, y: 0.35}
+    lowGravityDuration: {x: 4, y: 6}
     buoyancyAcceleration: {x: 2, y: 4}
-    buoyancyDuration: {x: 2, y: 3}
+    buoyancyDuration: {x: 3, y: 4}
     contactInterval: 0.3
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

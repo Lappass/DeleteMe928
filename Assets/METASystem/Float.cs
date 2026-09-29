@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using FloatingObjects;
 using UnityEngine;
 
@@ -10,6 +9,10 @@ public class Float : MonoBehaviour
     private Rigidbody body;
     private MeshCollider trigger;
     private Mesh ownedMesh;
+    private Mesh collisionMesh;
+    private MeshRenderer cloudRenderer;
+    private ParticleSystem wisps;
+    private FloatRandom cosmeticRandom;
     private Vector3 anchor;
     private Quaternion rotation;
     private float phase;
@@ -18,6 +21,9 @@ public class Float : MonoBehaviour
     private Vector3 lastSpawn;
     private bool hasSpawned;
     public int Appearance { get; private set; }
+    public FloatEffect Effect { get; private set; }
+    public Color EffectColor => CloudStyle.ColorFor(Effect);
+    public FloatArea Area => area;
     public float ReservationRadius { get; private set; }
     public Vector3 Anchor => anchor;
     public bool IsAvailable => gameObject.activeSelf && consumedAt < 0;
@@ -31,19 +37,25 @@ public class Float : MonoBehaviour
         trigger = GetComponent<MeshCollider>();
         trigger.convex = true;
         trigger.isTrigger = true;
+        cloudRenderer = GetComponent<MeshRenderer>();
+        var particles = new GameObject("Cloud wisps");
+        particles.transform.SetParent(transform, false);
+        wisps = particles.AddComponent<ParticleSystem>();
+        wisps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
     }
 
-    public void Spawn(FloatArea owner, Vector3 position, int appearance, float diameter, FloatRandom random)
+    public void Spawn(FloatArea owner, Vector3 position, int appearance, float diameter, FloatRandom random, FloatEffect effect)
     {
         area = owner;
         Appearance = appearance;
+        Effect = effect;
         ReservationRadius = diameter * .5f + owner.BobAmplitude + owner.Clearance;
         anchor = lastSpawn = position;
         hasSpawned = true;
         consumedAt = -1;
         phase = random.Range(0, Mathf.PI * 2);
-        spin = random.Range(12, 28);
-        rotation = Quaternion.Euler(random.Range(0, 360), random.Range(0, 360), random.Range(0, 360));
+        spin = random.Range(-7, 7);
+        rotation = Quaternion.Euler(0, random.Range(0, 360), 0);
         transform.SetPositionAndRotation(position, rotation);
         // Mesh dimensions are world units even under a scaled region transform.
         Vector3 scale = transform.parent.lossyScale;
@@ -51,20 +63,21 @@ public class Float : MonoBehaviour
         restingScale = transform.localScale;
         trigger.sharedMesh = null;
         if (ownedMesh != null) Destroy(ownedMesh);
-        ownedMesh = CreateMesh(diameter, appearance % 3, random);
+        if (collisionMesh != null) Destroy(collisionMesh);
+        CloudMesh.Create(diameter, appearance % 3, random, out ownedMesh, out collisionMesh);
         GetComponent<MeshFilter>().sharedMesh = ownedMesh;
-        trigger.sharedMesh = ownedMesh;
+        trigger.sharedMesh = collisionMesh;
         trigger.enabled = true;
-        var renderer = GetComponent<MeshRenderer>();
-        renderer.sharedMaterial = owner.FloatMaterial;
+        cloudRenderer.enabled = true;
+        cloudRenderer.sharedMaterial = owner.FloatMaterial;
         var properties = new MaterialPropertyBlock();
-        Color color = Color.HSVToRGB(random.Range(.43f, .65f), .35f, 1f);
-        properties.SetColor("_BaseColor", color);
-        properties.SetColor("_Color", color);
-        renderer.SetPropertyBlock(properties);
+        properties.SetColor("_BaseColor", EffectColor);
+        cloudRenderer.SetPropertyBlock(properties);
+        cosmeticRandom = new FloatRandom(random.Index(int.MaxValue));
         gameObject.SetActive(true);
         body.position = position;
         body.rotation = rotation;
+        ConfigureWisps(diameter);
     }
 
     private Vector3 restingScale = Vector3.one;
@@ -73,7 +86,7 @@ public class Float : MonoBehaviour
     {
         if (area == null || consumedAt >= 0) return;
         body.MovePosition(anchor + Vector3.up * (Mathf.Sin(Time.time * area.BobSpeed + phase) * area.BobAmplitude));
-        rotation *= Quaternion.Euler(spin * .3f * Time.fixedDeltaTime, spin * Time.fixedDeltaTime, 0);
+        rotation *= Quaternion.Euler(0, spin * Time.fixedDeltaTime, 0);
         body.MoveRotation(rotation);
     }
 
@@ -82,7 +95,8 @@ public class Float : MonoBehaviour
         if (consumedAt < 0) return;
         float progress = (Time.time - consumedAt) / .18f;
         transform.localScale = restingScale * Mathf.Max(.001f, 1 - progress);
-        if (progress >= 1) gameObject.SetActive(false);
+        if (progress >= 1) cloudRenderer.enabled = false;
+        if (Time.time - consumedAt >= .7f) gameObject.SetActive(false);
     }
 
     void OnTriggerEnter(Collider other) => TryConsume(other);
@@ -95,59 +109,66 @@ public class Float : MonoBehaviour
         if (player == null) return;
         FloatExperience experience = player.GetComponent<FloatExperience>();
         if (experience == null) experience = player.gameObject.AddComponent<FloatExperience>();
-        if (!experience.TryApply(area)) return;
+        if (!experience.TryApply(this)) return;
         consumedAt = Time.time;
         trigger.enabled = false;
+        Burst();
         area.Consumed(this);
     }
 
-    private static Mesh CreateMesh(float diameter, int shape, FloatRandom random)
+    private void ConfigureWisps(float diameter)
     {
-        var vertices = new List<Vector3> { Vector3.up, Vector3.down, Vector3.left, Vector3.right, Vector3.forward, Vector3.back };
-        var faces = new List<int> { 0,4,3, 0,3,5, 0,5,2, 0,2,4, 1,3,4, 1,5,3, 1,2,5, 1,4,2 };
-        for (int subdivision = 0; subdivision < 2; subdivision++)
-        {
-            var midpoints = new Dictionary<long, int>();
-            var refined = new List<int>();
-            for (int i = 0; i < faces.Count; i += 3)
-            {
-                int a = faces[i], b = faces[i + 1], c = faces[i + 2];
-                int ab = Midpoint(a, b, vertices, midpoints);
-                int bc = Midpoint(b, c, vertices, midpoints);
-                int ca = Midpoint(c, a, vertices, midpoints);
-                refined.AddRange(new[] { a,ab,ca, ab,b,bc, ca,bc,c, ab,bc,ca });
-            }
-            faces = refined;
-        }
-        Vector3 stretch = shape == 1 ? new Vector3(1, .45f, .55f) :
-            shape == 2 ? new Vector3(1, .35f, .85f) : new Vector3(1, .9f, .85f);
-        float maxRadius = 0;
-        for (int i = 0; i < vertices.Count; i++)
-        {
-            vertices[i] = Vector3.Scale(vertices[i], stretch) * random.Range(.82f, 1.15f);
-            maxRadius = Mathf.Max(maxRadius, vertices[i].magnitude);
-        }
-        for (int i = 0; i < vertices.Count; i++) vertices[i] *= diameter * .5f / maxRadius;
-        var mesh = new Mesh { name = "Procedural Float" };
-        mesh.SetVertices(vertices);
-        mesh.SetTriangles(faces, 0);
-        mesh.RecalculateNormals();
-        mesh.RecalculateBounds();
-        return mesh;
+        wisps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        var main = wisps.main;
+        main.loop = true;
+        main.playOnAwake = false;
+        main.startLifetime = 1.3f;
+        main.startSpeed = .08f;
+        main.startSize = diameter * .10f;
+        main.startColor = EffectColor;
+        main.maxParticles = 24;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.scalingMode = ParticleSystemScalingMode.Shape;
+        var emission = wisps.emission;
+        emission.enabled = true;
+        emission.rateOverTime = 2;
+        var shape = wisps.shape;
+        shape.shapeType = ParticleSystemShapeType.Sphere;
+        shape.radius = diameter * .34f;
+        var size = wisps.sizeOverLifetime;
+        size.enabled = true;
+        size.size = new ParticleSystem.MinMaxCurve(1, AnimationCurve.EaseInOut(0, 1, 1, 0));
+        var renderer = wisps.GetComponent<ParticleSystemRenderer>();
+        renderer.renderMode = ParticleSystemRenderMode.Mesh;
+        renderer.mesh = Resources.GetBuiltinResource<Mesh>("Sphere.fbx");
+        renderer.sharedMaterial = area.FloatMaterial;
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        wisps.Play();
     }
 
-    private static int Midpoint(int a, int b, List<Vector3> vertices, Dictionary<long, int> cache)
+    private void Burst()
     {
-        long key = ((long)Mathf.Min(a, b) << 32) | (uint)Mathf.Max(a, b);
-        if (cache.TryGetValue(key, out int index)) return index;
-        index = vertices.Count;
-        vertices.Add((vertices[a] + vertices[b]).normalized);
-        cache.Add(key, index);
-        return index;
+        var emission = wisps.emission;
+        emission.enabled = false;
+        for (int i = 0; i < 14; i++)
+        {
+            Vector3 velocity = new Vector3(cosmeticRandom.Range(-1, 1), cosmeticRandom.Range(.1f, 1), cosmeticRandom.Range(-1, 1));
+            var puff = new ParticleSystem.EmitParams
+            {
+                position = transform.position,
+                velocity = velocity * .85f,
+                startLifetime = .6f,
+                startSize = cosmeticRandom.Range(.10f, .23f),
+                startColor = EffectColor
+            };
+            wisps.Emit(puff, 1);
+        }
     }
 
     void OnDestroy()
     {
         if (ownedMesh != null) Destroy(ownedMesh);
+        if (collisionMesh != null) Destroy(collisionMesh);
     }
 }

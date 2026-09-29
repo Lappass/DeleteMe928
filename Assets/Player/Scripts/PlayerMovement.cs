@@ -21,9 +21,25 @@ public class PlayerMovement : MonoBehaviour
     public float BaseGravity => Mathf.Max(.01f, gravity);
     public float GravityEffectRemaining => gravityEffectRemaining;
     public float GravityMultiplier => gravityMultiplier;
+    public float GravityEffectDuration { get; private set; }
     public Vector3 ExternalVelocity => velocityPhysics;
+    public Vector3 ActualVelocity => controller != null ? controller.velocity : Vector3.zero;
+    public bool DashReady => dashCharges > 0 && !dashing;
+    public bool IsGliding { get; private set; }
+    public bool IsBraking { get; private set; }
+    public bool IsGrounded => isGrounded;
+    public float LifeTime => Time.time - lifeStartedAt;
+    public float BestLifeTime => Mathf.Max(bestLifeTime, LifeTime);
+    private float lifeStartedAt;
+    private float bestLifeTime;
+    [Header("Air control and recovery")]
+    [SerializeField, Min(0)] private float airTurnDegrees = 150;
+    [SerializeField, Min(0)] private float airBrakeDeceleration = 24;
+    [SerializeField, Min(1)] private float glideFallSpeed = 3f;
+    [SerializeField, Range(.05f, 1)] private float glideGravityMultiplier = .18f;
+    [Header("Dash and wall run")]
     [SerializeField] private float groundAcceleration = 80f;
-    [SerializeField] private float airAcceleration = 8f;
+    [SerializeField] private float airAcceleration = 22f;
     [SerializeField] private float dashSpeed = 22f;
     [SerializeField] private float dashDuration = 0.18f;
     [SerializeField] private float wallRunSpeed = 12f;
@@ -64,6 +80,19 @@ public class PlayerMovement : MonoBehaviour
 
     public bool IsWallRunning => wallRunning;
     public Vector3 WallNormal => wallNormal;
+    public Vector3 ChosenLaunchDirection
+    {
+        get
+        {
+            Vector2 input = controls != null ? controls.MoveInput() : Vector2.zero;
+            Vector3 direction = transform.right * input.x + transform.forward * input.y;
+            if (direction.sqrMagnitude < .01f) direction = transform.forward;
+            direction.y = 0;
+            return direction.sqrMagnitude > .001f ? direction.normalized : Vector3.forward;
+        }
+    }
+
+    public void RefillAirDash() => dashCharges = 1;
 
     void Start()
     {
@@ -80,6 +109,7 @@ public class PlayerMovement : MonoBehaviour
         //remember where the player started so they can be sent back there
         startPosition = transform.position;
         startRotation = transform.rotation;
+        lifeStartedAt = Time.time;
     }
 
     /// <summary>
@@ -87,6 +117,8 @@ public class PlayerMovement : MonoBehaviour
     /// </summary>
     public void ReturnToStart()
     {
+        bestLifeTime = Mathf.Max(bestLifeTime, LifeTime);
+        lifeStartedAt = Time.time;
         //the character controller overrides position changes while enabled, so turn it off while teleporting
         controller.enabled = false;
         transform.SetPositionAndRotation(startPosition, startRotation);
@@ -115,6 +147,7 @@ public class PlayerMovement : MonoBehaviour
     {
         gravityMultiplier = Mathf.Clamp(multiplier, -2f, 2f);
         gravityEffectRemaining = Mathf.Max(0, duration);
+        GravityEffectDuration = gravityEffectRemaining;
         if (gravityEffectRemaining == 0) gravityMultiplier = 1;
         CancelJumpAssist();
         if (gravityMultiplier < 0)
@@ -125,6 +158,11 @@ public class PlayerMovement : MonoBehaviour
             velocityPhysics.y = Mathf.Clamp(velocityPhysics.y, 0, buoyancyUpSpeedMax);
             isGrounded = false;
         }
+        else if (gravityMultiplier < 1)
+        {
+            // A feather cloud is useful even if collected during a fast fall.
+            velocityPhysics.y = Mathf.Max(velocityPhysics.y, -glideFallSpeed);
+        }
     }
 
     public void ClearExternalEffects()
@@ -134,6 +172,9 @@ public class PlayerMovement : MonoBehaviour
         velocityInput = Vector3.zero;
         gravityMultiplier = 1;
         gravityEffectRemaining = 0;
+        GravityEffectDuration = 0;
+        IsGliding = false;
+        IsBraking = false;
         ignoreGroundUntil = 0;
         CancelJumpAssist();
         inputInfluence = 1f;
@@ -213,11 +254,21 @@ public class PlayerMovement : MonoBehaviour
         // --movement input-- wish direction, scaled by move speed. Momentum code decides how fast we approach it
         Vector2 moveInput = Vector2.ClampMagnitude(controls.MoveInput(), 1f);
         velocityInput = (transform.right * moveInput.x + transform.forward * moveInput.y) * moveSpeed;
+        IsBraking = !isGrounded && controls.BrakeHeld();
+        if (IsBraking)
+        {
+            dashing = false;
+            dashTimer = 0;
+            EndWallRun();
+            inputInfluence = 1;
+        }
+        IsGliding = !isGrounded && !dashing && !wallRunning && gravityMultiplier >= 0 &&
+            velocityPhysics.y < -.1f && controls.JumpHeld();
 
         if (wallRunning && !ConfirmWall()) {
             EndWallRun();
         }
-        if (!dashing && !wallRunning && !isGrounded && gravityMultiplier >= 0 && Time.time >= ignoreGroundUntil && HorizontalSpeed() >= wallRunMinSpeed) {
+        if (!dashing && !wallRunning && !IsBraking && !IsGliding && !isGrounded && gravityMultiplier >= 0 && Time.time >= ignoreGroundUntil && HorizontalSpeed() >= wallRunMinSpeed) {
             TryStartWallRun();
         }
 
@@ -246,8 +297,9 @@ public class PlayerMovement : MonoBehaviour
             }
         }
         else {
-            ApplyGravity(gravityMultiplier);
+            ApplyGravity(gravityMultiplier * (IsGliding ? glideGravityMultiplier : 1));
         }
+        if (IsGliding) velocityPhysics.y = Mathf.Max(velocityPhysics.y, -glideFallSpeed);
 
         if (!dashing && !wallRunning) {
             ApplyHorizontalAcceleration();
@@ -268,7 +320,16 @@ public class PlayerMovement : MonoBehaviour
             jumpHeldTimer = jumpHeldTimerMax;
         }
         Vector3 horizontal = new Vector3(velocityPhysics.x, 0, velocityPhysics.z);
-        horizontal = Vector3.MoveTowards(horizontal, Vector3.zero, externalHorizontalDeceleration * Time.fixedDeltaTime);
+        float deceleration = externalHorizontalDeceleration;
+        if (IsBraking) deceleration = airBrakeDeceleration;
+        else if (!isGrounded && moveInput.sqrMagnitude > .01f && horizontal.sqrMagnitude > .01f)
+        {
+            Vector3 desired = velocityInput.normalized;
+            if (Vector3.Dot(horizontal.normalized, desired) < 0) deceleration *= 2;
+            horizontal = Vector3.RotateTowards(horizontal, desired * horizontal.magnitude,
+                airTurnDegrees * Mathf.Deg2Rad * Time.fixedDeltaTime, 0);
+        }
+        horizontal = Vector3.MoveTowards(horizontal, Vector3.zero, deceleration * Time.fixedDeltaTime);
         velocityPhysics.x = horizontal.x;
         velocityPhysics.z = horizontal.z;
     }
@@ -277,6 +338,7 @@ public class PlayerMovement : MonoBehaviour
     {
         float accel = isGrounded ? groundAcceleration : airAcceleration;
         Vector3 wish = velocityInput * inputInfluence;
+        if (IsBraking) { accel = airBrakeDeceleration; wish = Vector3.zero; }
         velocityHorizontal = Vector3.MoveTowards(velocityHorizontal, wish, accel * Time.fixedDeltaTime);
         velocityHorizontal.y = 0f;
     }
@@ -320,6 +382,10 @@ public class PlayerMovement : MonoBehaviour
         dir.Normalize();
 
         velocityHorizontal = dir * dashSpeed;
+        // A deliberate dash replaces a cloud's sideways impulse and catches a fall.
+        velocityPhysics.x = 0;
+        velocityPhysics.z = 0;
+        velocityPhysics.y = Mathf.Max(velocityPhysics.y, 0);
         inputInfluence = 0f;
         dashTimer = dashDuration;
         dashing = true;

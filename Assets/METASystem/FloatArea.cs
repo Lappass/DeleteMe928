@@ -12,8 +12,8 @@ public class FloatArea : MonoBehaviour
     [Header("Spawning")]
     [SerializeField, Min(.2f)] private float replenishDelay = 2;
     [SerializeField, Min(1)] private int attemptsPerSpawn = 30;
-    [SerializeField] private Vector2 diameterRange = new Vector2(.6f, 1.8f);
-    [SerializeField] private Vector2 heightAbovePlatform = new Vector2(.8f, 1.8f);
+    [SerializeField] private Vector2 diameterRange = new Vector2(.9f, 2.1f);
+    [SerializeField] private Vector2 heightAbovePlatform = new Vector2(.9f, 2.1f);
     [SerializeField, Min(0)] private float playerExclusionRadius = 2;
     [SerializeField, Min(0)] private float neighborDistance = 4;
     [SerializeField, Min(0)] private float clearance = .12f;
@@ -61,7 +61,7 @@ public class FloatArea : MonoBehaviour
         }
         if (floatMaterial == null)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            Shader shader = Shader.Find("CloudHop/Soft Cloud");
             if (shader == null) { Debug.LogError("Assign a float material.", this); enabled = false; return; }
             ownedMaterial = new Material(shader) { name = "Float Material" };
             floatMaterial = ownedMaterial;
@@ -99,11 +99,13 @@ public class FloatArea : MonoBehaviour
     {
         var sizes = new int[3];
         var shapes = new int[3];
+        var effectCounts = new int[4];
         foreach (Float item in pool)
-            if (item.IsAvailable) { sizes[item.Appearance / 3]++; shapes[item.Appearance % 3]++; }
+            if (item.IsAvailable) { sizes[item.Appearance / 3]++; shapes[item.Appearance % 3]++; effectCounts[(int)item.Effect]++; }
         for (int attempt = 0; attempt < attemptsPerSpawn; attempt++)
         {
             int appearance = random.ChooseAppearance(sizes, shapes);
+            FloatEffect effect = random.ChooseEffect(effectCounts);
             float step = (diameterRange.y - diameterRange.x) / 3;
             float diameter = random.Range(diameterRange.x + step * (appearance / 3), diameterRange.x + step * (appearance / 3 + 1));
             float radius = diameter * .5f + bobAmplitude + clearance;
@@ -117,15 +119,15 @@ public class FloatArea : MonoBehaviour
             if (minimumHeight > heightAbovePlatform.y) continue;
             Vector3 position = hit.point + Vector3.up * random.Range(minimumHeight, heightAbovePlatform.y);
             if (!ContainsSphere(position, radius) || pool[slot].IsPreviousPosition(position)) continue;
-            if (!SpaceAvailable(position, radius, appearance)) continue;
-            pool[slot].Spawn(this, position, appearance, diameter, random);
+            if (!SpaceAvailable(position, radius, appearance, effect)) continue;
+            pool[slot].Spawn(this, position, appearance, diameter, random, effect);
             Physics.SyncTransforms();
             return;
         }
         readyAt[slot] = Time.time + .5f;
     }
 
-    private bool SpaceAvailable(Vector3 position, float radius, int appearance)
+    private bool SpaceAvailable(Vector3 position, float radius, int appearance, FloatEffect effect)
     {
         foreach (PlayerMovement player in players)
             if (player != null && Vector3.Distance(player.transform.position, position) < playerExclusionRadius + radius) return false;
@@ -135,6 +137,7 @@ public class FloatArea : MonoBehaviour
             float distance = Vector3.Distance(item.Anchor, position);
             if (distance < item.ReservationRadius + radius) return false;
             if (item.IsAvailable && item.Appearance == appearance && distance < neighborDistance) return false;
+            if (item.IsAvailable && item.Effect == effect && distance < neighborDistance * .65f) return false;
         }
         // Other areas also reserve the full range of floating motion.
         foreach (FloatArea other in ActiveAreas)
@@ -156,24 +159,6 @@ public class FloatArea : MonoBehaviour
     {
         int slot = pool.IndexOf(item);
         if (slot >= 0) readyAt[slot] = Time.time + Mathf.Max(.2f, replenishDelay);
-    }
-
-    public int[] AllowedDirections(Vector3 position)
-    {
-        Bounds bounds = WorldBounds;
-        const float edge = 3;
-        if (position.x > bounds.min.x + edge && position.x < bounds.max.x - edge &&
-            position.z > bounds.min.z + edge && position.z < bounds.max.z - edge) return null;
-        Vector3 inward = bounds.center - position;
-        inward.y = 0;
-        var choices = new List<int>();
-        for (int i = 0; i < 8; i++)
-        {
-            float angle = i * 45 * Mathf.Deg2Rad;
-            Vector3 direction = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
-            if (Vector3.Dot(direction, inward.normalized) > .3f) choices.Add(i);
-        }
-        return choices.Count >= 2 ? choices.ToArray() : null;
     }
 
     private bool ContainsSphere(Vector3 position, float radius)

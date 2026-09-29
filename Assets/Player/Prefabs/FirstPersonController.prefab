@@ -56,7 +56,7 @@ MonoBehaviour:
   moveSpeed: 5
   jumpStartingVelocity: 6
   gravity: 25
-  fallSpeedMax: 40
+  fallSpeedMax: 18
   jumpHeldTimerMax: 0.25
   jumpPreloadTimerMax: 0.12
   coyoteTimerMax: 0.09
@@ -166,7 +166,7 @@ MonoBehaviour:
   m_ActionEvents: []
   m_NeverAutoSwitchControlSchemes: 0
   m_DefaultControlScheme: 
-  m_DefaultActionMap: 
+  m_DefaultActionMap: Player
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
 --- !u!1 &6301407549403393434

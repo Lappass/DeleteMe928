@@ -6,35 +6,27 @@ using NUnit.Framework;
 public class FloatRandomTests
 {
     [Test]
-    public void EveryBagContainsAllEffectsAndBoundariesNeverRepeat()
+    public void EffectCountsStayBalancedAcrossSpawnsAndReplacements()
     {
         for (int seed = 0; seed < 100; seed++)
         {
             var random = new FloatRandom(seed);
-            FloatEffect? previous = null;
-            for (int bag = 0; bag < 100; bag++)
+            var counts = new int[4];
+            var population = new List<FloatEffect>();
+            for (int spawn = 0; spawn < 100; spawn++)
             {
-                var seen = new HashSet<FloatEffect>();
-                for (int i = 0; i < 4; i++)
+                if (population.Count == 8)
                 {
-                    FloatEffect next = random.NextEffect();
-                    Assert.That(next, Is.Not.EqualTo(previous));
-                    Assert.That(seen.Add(next), Is.True);
-                    previous = next;
+                    int index = random.Index(population.Count);
+                    counts[(int)population[index]]--;
+                    population.RemoveAt(index);
                 }
+                FloatEffect next = random.ChooseEffect(counts);
+                population.Add(next);
+                counts[(int)next]++;
+                Assert.That(MaxDifference(counts), Is.LessThanOrEqualTo(1));
             }
-            Assert.That(random.RecentEffects.Length, Is.EqualTo(4));
         }
-    }
-
-    [Test]
-    public void HistoryContainsOnlyLastFourEffectsInOrder()
-    {
-        var random = new FloatRandom(928);
-        for (int i = 0; i < 12; i++) random.NextEffect();
-        var expected = new FloatEffect[4];
-        for (int i = 0; i < 4; i++) expected[i] = random.NextEffect();
-        Assert.That(random.RecentEffects, Is.EqualTo(expected));
     }
 
     [Test]
@@ -62,38 +54,23 @@ public class FloatRandomTests
     }
 
     [Test]
-    public void DirectionNeverRepeatsAndRespectsAllowedSectors()
-    {
-        var random = new FloatRandom(928);
-        int previous = -1;
-        for (int i = 0; i < 2000; i++)
-        {
-            int[] allowed = i % 2 == 0 ? new[] { 0, 1, 7 } : new[] { 3, 4, 5 };
-            int direction = random.NextDirection(allowed);
-            Assert.That(direction, Is.Not.EqualTo(previous));
-            Assert.That(allowed, Does.Contain(direction));
-            previous = direction;
-            direction = random.NextDirection(allowed);
-            Assert.That(direction, Is.Not.EqualTo(previous));
-            previous = direction;
-        }
-    }
-
-    [Test]
     public void SameSeedReproducesMixedRandomOperations()
     {
         var first = new FloatRandom(928);
         var second = new FloatRandom(928);
         for (int i = 0; i < 1000; i++)
         {
-            Assert.That(first.NextEffect(), Is.EqualTo(second.NextEffect()));
+            Assert.That(first.ChooseEffect(new[] { 2, 1, 2, 2 }), Is.EqualTo(second.ChooseEffect(new[] { 2, 1, 2, 2 })));
             Assert.That(first.Range(.6f, 1.8f), Is.EqualTo(second.Range(.6f, 1.8f)));
-            Assert.That(first.NextDirection(new[] { 0, 1, 2 }), Is.EqualTo(second.NextDirection(new[] { 0, 1, 2 })));
             Assert.That(first.ChooseAppearance(new[] { 2, 3, 2 }, new[] { 3, 2, 2 }),
                 Is.EqualTo(second.ChooseAppearance(new[] { 2, 3, 2 }, new[] { 3, 2, 2 })));
         }
     }
 
-    private static int MaxDifference(int[] counts) =>
-        Math.Max(counts[0], Math.Max(counts[1], counts[2])) - Math.Min(counts[0], Math.Min(counts[1], counts[2]));
+    private static int MaxDifference(int[] counts)
+    {
+        int min = int.MaxValue, max = int.MinValue;
+        foreach (int count in counts) { min = Math.Min(min, count); max = Math.Max(max, count); }
+        return max - min;
+    }
 }
