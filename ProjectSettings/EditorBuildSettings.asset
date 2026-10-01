@@ -11,5 +11,20 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/PlatformerLevel.unity
     guid: 9df107bd41d3544e0b254041cf0f48c9
+  - enabled: 1
+    path: Assets/Scenes/LevelHub.unity
+    guid: 0ade03f291f18334cabf107b967cd55e
+  - enabled: 1
+    path: Assets/Scenes/DashGulch.unity
+    guid: 43940ba97a7489f47aba99dfe5213b5a
+  - enabled: 1
+    path: Assets/Scenes/WallGallery.unity
+    guid: 143e1d1a6a1285d43b1845d7b8ca8afa
+  - enabled: 1
+    path: Assets/Scenes/FloatStair.unity
+    guid: ba74b0a2754d6eb4caa1070576cd792f
+  - enabled: 1
+    path: Assets/Scenes/WaspYard.unity
+    guid: 1f0d22aca0939ed4eb7d1674b430d85a
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
