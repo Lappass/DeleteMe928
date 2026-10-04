@@ -1,15 +1,35 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class GoalBanner : MonoBehaviour
 {
     [SerializeField] private float minCenterY;
+    [SerializeField] private string sceneName = "LevelHub";
+    [SerializeField] private float returnDelay = 0.7f;
     private bool cleared;
+    private bool returning;
+    private float clearedAt;
     private GUIStyle style;
 
-    void OnTriggerStay(Collider other)
+    void OnTriggerEnter(Collider other) => TryClear(other);
+
+    void OnTriggerStay(Collider other) => TryClear(other);
+
+    void TryClear(Collider other)
     {
-        PlayerMovement player = other.GetComponent<PlayerMovement>();
-        if (player != null && player.transform.position.y >= minCenterY) cleared = true;
+        if (cleared) return;
+        PlayerMovement player = other.GetComponentInParent<PlayerMovement>();
+        if (player == null || player.transform.position.y < minCenterY) return;
+        cleared = true;
+        clearedAt = Time.time;
+    }
+
+    void Update()
+    {
+        float delay = returnDelay > 0.01f ? returnDelay : 0.7f;
+        if (!cleared || returning || Time.time < clearedAt + delay) return;
+        returning = true;
+        SceneManager.LoadScene(string.IsNullOrEmpty(sceneName) ? "LevelHub" : sceneName);
     }
 
     void OnGUI()

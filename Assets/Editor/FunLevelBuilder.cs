@@ -225,10 +225,20 @@ public static class FunLevelBuilder
     private static void AddReturnToOriginal()
     {
         Scene scene = EditorSceneManager.OpenScene("Assets/Scenes/PlatformerLevel.unity", OpenSceneMode.Single);
-        if (GameObject.Find("ReturnToHub") != null) return;
         Transform level = GameObject.Find("Level").transform;
-        Solid(level, "HubPad", new Vector3(0f, -0.5f, -4.7f), new Vector3(3f, 1f, 3.4f), startMat);
-        ReturnDoor(level, new Vector3(0f, 1.2f, -5.6f), new Vector3(2.4f, 2.4f, 1.2f));
+        bool changed = false;
+        if (GameObject.Find("ReturnToHub") == null)
+        {
+            Solid(level, "HubPad", new Vector3(0f, -0.5f, -4.7f), new Vector3(3f, 1f, 3.4f), startMat);
+            ReturnDoor(level, new Vector3(0f, 1.2f, -5.6f), new Vector3(2.4f, 2.4f, 1.2f));
+            changed = true;
+        }
+        if (GameObject.Find("GoalVolume") == null)
+        {
+            GoalVolume(level, new Vector3(18.65f, 8.05f, 51.65f), new Vector3(3.2f, 2.2f, 3.2f), 7.2f);
+            changed = true;
+        }
+        if (!changed) return;
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
     }
@@ -318,6 +328,7 @@ public static class FunLevelBuilder
         trigger.AddComponent<GoalBanner>();
         SerializedObject so = new SerializedObject(trigger.GetComponent<GoalBanner>());
         so.FindProperty("minCenterY").floatValue = minCenterY;
+        so.FindProperty("sceneName").stringValue = "LevelHub";
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 
