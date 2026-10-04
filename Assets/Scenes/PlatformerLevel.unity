@@ -633,6 +633,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 296162992}
+  - component: {fileID: 2000000130}
   m_Layer: 0
   m_Name: Level
   m_TagString: Untagged
@@ -640,6 +641,33 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
+--- !u!114 &2000000130
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 296162991}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d57936351664316aac612b99bc0bb76, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::EndlessWorld
+  authoredPlatforms: {fileID: 1388114534}
+  platformMaterial: {fileID: 2100000, guid: b83994ac710154e718e9b760262939e7, type: 2}
+  lavaMaterial: {fileID: 2100000, guid: ff0ba93ace1b24e6c84ebdc9813fa4b6, type: 2}
+  cloudMaterial: {fileID: 2100000, guid: d768ed9c7f52412580288c3ffbc5ade9, type: 2}
+  seed: 928
+  segmentLength: 32
+  segmentsAhead: 3
+  floorWidth: 44
+  difficultyRampDistance: 1200
+  maximumDifficulty: 0.8
+  maximumLavaRadius: 8
+  landingAssistDelay: 1.35
+  landingAssistWindow: 3
+  landingAssistCloudRange: 34
+  firstSegmentStart: {x: 18.65, y: 6.4, z: 51.65}
 --- !u!4 &296162992
 Transform:
   m_ObjectHideFlags: 0
@@ -793,7 +821,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &354604166
 Transform:
   m_ObjectHideFlags: 0
@@ -3550,7 +3578,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 880010001}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fd262bf7d69329c4db6761422dd59fd9, type: 3}
   m_Name: 
@@ -3558,4 +3586,3 @@ MonoBehaviour:
   minCenterY: 7.2
   sceneName: LevelHub
   returnDelay: 0.7
-

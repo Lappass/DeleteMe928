@@ -166,6 +166,15 @@ public class FloatArea : MonoBehaviour
         readyAt[slot] = Time.time + .5f;
     }
 
+    public void Configure(Vector3 regionSize, Transform surfaceRoot, int count, int areaSeed, Material material)
+    {
+        size = regionSize;
+        platformRoot = surfaceRoot;
+        targetCount = Mathf.Max(1, count);
+        seed = areaSeed;
+        if (material != null) floatMaterial = material;
+    }
+
     private void SpawnAt(int slot, Vector3 position, PendingSpawn pending)
     {
         pool[slot].Spawn(this, position, pending.Appearance, pending.Diameter, random, pending.Effect);

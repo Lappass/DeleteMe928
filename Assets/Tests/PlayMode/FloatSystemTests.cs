@@ -55,7 +55,8 @@ public class FloatSystemTests
         experience = player.GetComponent(GameType("FloatExperience"));
         ((Behaviour)player).enabled = false;
         Teleport(new Vector3(-10, 10, 0));
-        areas = Find("FloatArea");
+        Call(Find("EndlessWorld").Single(), "CancelLandingAssist");
+        areas = Find("FloatArea").Where(area => area.GetComponentInParent(GameType("EndlessSegment")) == null).ToArray();
         Assert.That(areas.Length, Is.EqualTo(3));
         yield return new WaitForSeconds(2);
         Assert.That(areas.Sum(a => Get<int>(a, "ActiveCount")), Is.GreaterThan(0), "The configured route should offer at least one clear spawn point.");
@@ -83,8 +84,8 @@ public class FloatSystemTests
     [UnityTest]
     public IEnumerator GeneratedObjectsRespectReservationsAndAppearanceQuotas()
     {
-        Component[] floats = Find("Float");
-        Assert.That(floats.Length, Is.InRange(1, 24), "Cloud population must stay within the pooled per-area cap.");
+        Component[] floats = Find("Float").Where(item => item.gameObject.activeSelf && Get<bool>(item, "IsAvailable")).ToArray();
+        Assert.That(floats.Length, Is.InRange(1, 48), "Active cloud count must stay bounded by the fixed and streamed pools.");
         foreach (Component item in floats)
         {
             float radius = Get<float>(item, "ReservationRadius");
@@ -144,7 +145,8 @@ public class FloatSystemTests
     public IEnumerator ContactIsSingleUseCooldownRetriesAndPoolReplenishes()
     {
         int availableBeforeContact = areas.Sum(a => Get<int>(a, "ActiveCount"));
-        Component[] floats = Find("Float");
+        Component[] floats = areas.SelectMany(area => area.GetComponentsInChildren(GameType("Float")))
+            .Cast<Component>().Where(item => Get<bool>(item, "IsAvailable")).ToArray();
         Assert.That(floats.Length, Is.GreaterThanOrEqualTo(2));
         Component first = floats[0], second = floats[1];
         Vector3 previous = Get<Vector3>(first, "Anchor");
@@ -346,8 +348,8 @@ public class FloatSystemTests
         Teleport(new Vector3(-10, 5, 0));
         Call(hud, "Refresh");
         Assert.That(Get<float>(hud, "GroundDistance"), Is.InRange(6.9f, 7.1f));
-        Assert.That(Get<bool>(hud, "SurfaceIsHazard"), Is.True);
-        Teleport(new Vector3(1000, 10, 1000));
+        Assert.That(Get<bool>(hud, "SurfaceIsHazard"), Is.False, "The opening route now has safe base ground beneath its platforms.");
+        Teleport(new Vector3(1000, 10, 15));
         Call(hud, "Refresh");
         Assert.That(Get<float>(hud, "GroundDistance"), Is.EqualTo(float.PositiveInfinity));
         Canvas canvas = Get<Canvas>(hud, "HudCanvas");
@@ -372,6 +374,187 @@ public class FloatSystemTests
         yield return new WaitForSeconds(4);
         Assert.That(areas.Sum(a => Get<int>(a, "ActiveCount")), Is.GreaterThan(0));
         Assert.That(areas.All(a => Get<int>(a, "ActiveCount") <= 8), Is.True);
+    }
+
+    [UnityTest]
+    public IEnumerator EndlessSectionsAreDeterministicAndKeepSafeGround()
+    {
+        Component[] sections = Find("EndlessSegment");
+        Assert.That(sections.Length, Is.EqualTo(3), "Three future sections should be ready beyond the authored opening.");
+        Component first = sections.Single(section => Get<int>(section, "SegmentIndex") == 0);
+        Assert.That(Get<float>(first, "SafeAreaRatio"), Is.GreaterThanOrEqualTo(.7f));
+        MeshCollider terrain = first.GetComponentsInChildren<MeshCollider>()
+            .Single(collider => collider.name == "Safe ground with open lava vent");
+        Component lavaTrigger = first.GetComponentInChildren(GameType("Lava"));
+        Vector2 holeCenter = (Vector2)first.GetType().GetField("holeCenter", Fields).GetValue(first);
+        Vector3 triggerInGround = terrain.transform.InverseTransformPoint(lavaTrigger.transform.position);
+        Assert.That(triggerInGround.x, Is.EqualTo(holeCenter.x).Within(.001f));
+        Assert.That(triggerInGround.z, Is.EqualTo(holeCenter.y).Within(.001f),
+            "The visible/collidable vent must line up with the actual opening in the ground mesh.");
+        float largestRadius = Get<float>(first, "MaximumHoleRadius");
+        Assert.That(largestRadius, Is.GreaterThan(3.7f), "The new lava vent should be substantially larger.");
+        Call(first, "UpdateHoleMesh", 1.4f);
+        int smallVentTriangleCount = terrain.sharedMesh.triangles.Length;
+        Call(first, "UpdateHoleMesh", largestRadius);
+        int expandedVentTriangleCount = terrain.sharedMesh.triangles.Length;
+        Assert.That(expandedVentTriangleCount, Is.LessThan(smallVentTriangleCount), "The expanding vent must remove real floor triangles.");
+        Assert.That(Get<float>(first, "SafeAreaRatio"), Is.GreaterThanOrEqualTo(.7f));
+        Vector3 ventCenter = terrain.transform.TransformPoint(new Vector3(holeCenter.x, 1f, holeCenter.y));
+        Assert.That(terrain.Raycast(new Ray(ventCenter, Vector3.down), out _, 2f), Is.False,
+            "There must be a real collider opening at the visual vent center.");
+        Vector3 safeProbe = terrain.transform.TransformPoint(new Vector3(holeCenter.x >= 0 ? -20f : 20f, 1f, holeCenter.y));
+        Assert.That(terrain.Raycast(new Ray(safeProbe, Vector3.down), out _, 2f), Is.True,
+            "Safe ground next to the vent must remain solid.");
+        Call(first, "UpdateHoleMesh", 1.4f);
+        Assert.That(terrain.sharedMesh.triangles.Length, Is.GreaterThan(expandedVentTriangleCount), "Shrinking the vent restores safe floor.");
+        Assert.That(first.GetComponentInChildren(GameType("Lava")), Is.Not.Null);
+        Assert.That(first.GetComponentInChildren<CapsuleCollider>().isTrigger, Is.True);
+        Assert.That(Get<Component>(first, "CloudArea"), Is.Not.Null);
+        Component[] steps = first.GetComponentsInChildren(GameType("EndlessSafePlatform"))
+            .Cast<Component>().Where(step => step.GetComponentInParent(GameType("EndlessSegment")) == first).ToArray();
+        Assert.That(steps.Length, Is.GreaterThanOrEqualTo(8));
+        foreach (Component step in steps)
+        {
+            Mesh mesh = step.GetComponent<MeshCollider>().sharedMesh;
+            Assert.That(mesh, Is.Not.Null);
+            Assert.That(mesh.vertexCount, Is.EqualTo(12), "Generated steps are thick five-sided prisms.");
+        }
+        foreach (Component section in sections)
+        {
+            Component[] mainRoute = section.GetComponentsInChildren(GameType("EndlessSafePlatform"))
+                .Cast<Component>()
+                .Where(step => step.name.StartsWith("Step "))
+                .OrderBy(step => step.transform.position.z)
+                .ToArray();
+            Assert.That(mainRoute.Length, Is.EqualTo(8));
+            for (int i = 1; i < mainRoute.Length; i++)
+            {
+                Vector3 previous = mainRoute[i - 1].transform.position;
+                Vector3 next = mainRoute[i].transform.position;
+                Assert.That(next.x - previous.x, Is.InRange(-2.301f, 2.301f),
+                    $"Section {Get<int>(section, "SegmentIndex")} has a reachable sideways step.");
+                Assert.That(next.y - previous.y, Is.InRange(-.911f, .911f),
+                    $"Section {Get<int>(section, "SegmentIndex")} has a reachable height change.");
+                Assert.That(next.z - previous.z, Is.EqualTo(4f).Within(.001f));
+                Assert.That(new Vector2(next.x - previous.x, next.z - previous.z).magnitude, Is.LessThan(4.62f));
+            }
+        }
+        Component[] orderedSections = sections.OrderBy(section => Get<int>(section, "SegmentIndex")).ToArray();
+        for (int i = 1; i < orderedSections.Length; i++)
+        {
+            Component previousEnd = orderedSections[i - 1].GetComponentsInChildren(GameType("EndlessSafePlatform"))
+                .Cast<Component>().Single(step => step.name == "Step 8");
+            Component nextStart = orderedSections[i].GetComponentsInChildren(GameType("EndlessSafePlatform"))
+                .Cast<Component>().Single(step => step.name == "Step 1");
+            Assert.That(nextStart.transform.position.x - previousEnd.transform.position.x, Is.InRange(-2.301f, 2.301f));
+            Assert.That(nextStart.transform.position.y - previousEnd.transform.position.y, Is.InRange(-.911f, .911f));
+            Assert.That(nextStart.transform.position.z - previousEnd.transform.position.z, Is.EqualTo(4f).Within(.001f));
+        }
+
+        Component world = Find("EndlessWorld").Single();
+        var previewObject = new GameObject("Determinism preview");
+        var preview = previewObject.AddComponent(GameType("EndlessSegment"));
+        Material platform = (Material)world.GetType().GetField("platformMaterial", Fields).GetValue(world);
+        Material lava = (Material)world.GetType().GetField("lavaMaterial", Fields).GetValue(world);
+        Material cloud = (Material)world.GetType().GetField("cloudMaterial", Fields).GetValue(world);
+        Call(preview, "Build", 0, 51.65f, 18.65f, 6.4f, 32f, 44f, 928, 0f, 18.65f, platform, lava, cloud);
+        Vector3[] actualPositions = steps.Select(step => step.transform.position).OrderBy(position => position.z).ThenBy(position => position.x).ToArray();
+        Vector3[] previewPositions = preview.GetComponentsInChildren(GameType("EndlessSafePlatform"))
+            .Cast<Component>().Select(step => step.transform.position).OrderBy(position => position.z).ThenBy(position => position.x).ToArray();
+        Assert.That(previewPositions.Length, Is.EqualTo(actualPositions.Length));
+        for (int i = 0; i < actualPositions.Length; i++)
+            Assert.That(Vector3.Distance(actualPositions[i], previewPositions[i]), Is.LessThan(.0001f), $"Platform {i} should match the fixed seed.");
+        Object.Destroy(previewObject);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator AdvancingStreamsSectionsAndLavaRespawnsAtCheckpoint()
+    {
+        Component world = Find("EndlessWorld").Single();
+        Component initial = Find("EndlessSegment").Single(section => Get<int>(section, "SegmentIndex") == 0);
+        Component checkpoint = initial.GetComponentsInChildren(GameType("EndlessSafePlatform"))
+            .Cast<Component>().First(step => step.GetComponentInParent(GameType("EndlessSegment")) == initial);
+        Collider checkpointCollider = checkpoint.GetComponent<Collider>();
+        Set(player, "isGrounded", true);
+        Call(world, "RegisterSafeSurface", checkpointCollider);
+        Vector3 expected = (Vector3)checkpoint.GetType().GetProperty("RespawnPosition").GetValue(checkpoint);
+
+        Teleport(new Vector3(10, 10, 200));
+        yield return null;
+        yield return null;
+        int[] activeIndices = Find("EndlessSegment").Select(section => Get<int>(section, "SegmentIndex")).ToArray();
+        Assert.That(activeIndices.Max(), Is.GreaterThan(2));
+        Assert.That(activeIndices.Length, Is.LessThanOrEqualTo(5), "Only nearby sections and the pinned checkpoint section should remain.");
+        Assert.That(activeIndices, Does.Contain(0), "The section holding the last safe platform stays alive.");
+        Assert.That(activeIndices.Contains(1), Is.False);
+        Assert.That(activeIndices.Contains(2), Is.False);
+
+        Call(player, "ApplyGravityEffect", .25f, 4f);
+        GameObject lavaObject = new GameObject("Test lava vent");
+        var lava = lavaObject.AddComponent(GameType("Lava"));
+        Call(lava, "OnTriggerEnter", player.GetComponent<CharacterController>());
+        Assert.That(Vector3.Distance(player.transform.position, expected), Is.LessThan(.01f));
+        Assert.That(Get<float>(player, "GravityEffectRemaining"), Is.Zero);
+        Object.Destroy(lavaObject);
+        yield return null;
+        // Unity destroys recycled section GameObjects at the end of the frame.
+        yield return null;
+        int[] respawnedIndices = Find("EndlessSegment").Select(section => Get<int>(section, "SegmentIndex")).ToArray();
+        CollectionAssert.AreEquivalent(new[] { 0, 1, 2 }, respawnedIndices,
+            "Respawning at an old checkpoint rebuilds its missing forward sections and releases stale distant ones.");
+    }
+
+    [UnityTest]
+    public IEnumerator SafeLandingLaunchesTowardACloudWithinThreeSecondsAndRespawnCancelsIt()
+    {
+        Component world = Find("EndlessWorld").Single();
+        Component cloud = areas.SelectMany(area => area.GetComponentsInChildren(GameType("Float")))
+            .Cast<Component>().First(item => Get<bool>(item, "IsAvailable"));
+        Vector3 anchor = Get<Vector3>(cloud, "Anchor");
+        Assert.That(Physics.Raycast(anchor, Vector3.down, out RaycastHit hit, 20f, ~0, QueryTriggerInteraction.Ignore), Is.True);
+        Teleport(hit.point + Vector3.up * 1.05f);
+        Set(player, "isGrounded", true);
+        float landedAt = Time.time;
+        Call(world, "NotifySafeLanding", hit.collider);
+        Assert.That(Get<bool>(world, "LandingAssistPending"), Is.True);
+        yield return new WaitForSeconds(1.7f);
+        Vector3 launch = Get<Vector3>(player, "ExternalVelocity");
+        Assert.That(launch.y, Is.GreaterThan(4f));
+        Assert.That(launch.magnitude, Is.LessThanOrEqualTo(36.01f));
+        Assert.That(Time.time - landedAt, Is.LessThan(3f));
+        Assert.That(Get<bool>(world, "LandingAssistPending"), Is.False);
+
+        Call(player, "ClearExternalEffects");
+        Teleport(hit.point + Vector3.up * 1.05f);
+        Set(player, "isGrounded", true);
+        Call(world, "NotifySafeLanding", hit.collider);
+        Call(world, "Respawn", player);
+        Assert.That(Get<bool>(world, "LandingAssistPending"), Is.False);
+        yield return new WaitForSeconds(1.7f);
+        Assert.That(Get<Vector3>(player, "ExternalVelocity"), Is.EqualTo(Vector3.zero));
+    }
+
+    [UnityTest]
+    public IEnumerator ActualLandingStartsCloudLiftAndPlayerJumpCancelsIt()
+    {
+        Component world = Find("EndlessWorld").Single();
+        Collider startPad = GameObject.Find("StartPad").GetComponent<Collider>();
+        Vector3 padCenter = startPad.bounds.center;
+        Call(player, "ClearExternalEffects");
+        Teleport(new Vector3(padCenter.x, startPad.bounds.max.y + 2.5f, padCenter.z));
+        Set(player, "isGrounded", false);
+        Set(player, "wasGroundedLastFrame", false);
+        ((Behaviour)player).enabled = true;
+        float deadline = Time.time + 2f;
+        while (Time.time < deadline && !Get<bool>(world, "LandingAssistPending"))
+            yield return null;
+        Assert.That(Get<bool>(player, "IsGrounded"), Is.True, "The player should land on the safe opening platform.");
+        Assert.That(Get<bool>(world, "LandingAssistPending"), Is.True, "A real GroundEnter should schedule the lift.");
+        Call(player, "BeginJump");
+        yield return new WaitForFixedUpdate();
+        yield return null;
+        Assert.That(Get<bool>(world, "LandingAssistPending"), Is.False, "A deliberate jump should cancel the automatic lift.");
     }
 
     private void Teleport(Vector3 position)

@@ -19,6 +19,8 @@ public class PlayerMovement : MonoBehaviour
     private float gravityMultiplier = 1f;
     private float ignoreGroundUntil;
     public float BaseGravity => Mathf.Max(.01f, gravity);
+    public float ExternalHorizontalDeceleration => externalHorizontalDeceleration;
+    public float ExternalSpeedLimit => externalSpeedMax;
     public float GravityEffectRemaining => gravityEffectRemaining;
     public float GravityMultiplier => gravityMultiplier;
     public float GravityEffectDuration { get; private set; }
@@ -59,6 +61,7 @@ public class PlayerMovement : MonoBehaviour
     private bool jumping;
     private bool isGrounded;
     private bool wasGroundedLastFrame;
+    private Collider groundedSurface;
     private Vector3 velocity;
     private Vector3 velocityInput;
     private Vector3 velocityPhysics;
@@ -117,6 +120,7 @@ public class PlayerMovement : MonoBehaviour
     /// </summary>
     public void ReturnToStart()
     {
+        EndlessWorld.Instance?.CancelLandingAssist();
         bestLifeTime = Mathf.Max(bestLifeTime, LifeTime);
         lifeStartedAt = Time.time;
         //the character controller overrides position changes while enabled, so turn it off while teleporting
@@ -124,6 +128,17 @@ public class PlayerMovement : MonoBehaviour
         transform.SetPositionAndRotation(startPosition, startRotation);
         controller.enabled = true;
 
+        ClearExternalEffects();
+        isGrounded = false;
+        wasGroundedLastFrame = false;
+    }
+
+    public void RespawnAtCheckpoint(Vector3 position, Quaternion rotation)
+    {
+        EndlessWorld.Instance?.CancelLandingAssist();
+        controller.enabled = false;
+        transform.SetPositionAndRotation(position, rotation);
+        controller.enabled = true;
         ClearExternalEffects();
         isGrounded = false;
         wasGroundedLastFrame = false;
@@ -232,10 +247,15 @@ public class PlayerMovement : MonoBehaviour
             if (gravityEffectRemaining == 0) gravityMultiplier = 1;
         }
         // --isGrounded logic--
+        groundedSurface = null;
         isGrounded = Time.time >= ignoreGroundUntil && velocityPhysics.y <= 0 &&
             gravityMultiplier >= 0 && RaycastTouchesGround();
+        if (isGrounded && groundedSurface != null)
+            EndlessWorld.Instance?.RegisterSafeSurface(groundedSurface);
         if (isGrounded && !wasGroundedLastFrame) {
             GroundEnter();
+            if (velocityPhysics.y <= 0)
+                EndlessWorld.Instance?.NotifySafeLanding(groundedSurface);
         }
         if (!isGrounded && wasGroundedLastFrame) {
             GroundExit();
@@ -563,7 +583,7 @@ public class PlayerMovement : MonoBehaviour
     /// </summary>
     void GroundStay(RaycastHit hit)
     {
-        //USE THIS IF YOU WANT SOMETHING TO HAPPEN EACH FRAME YOU ARE TOUCHING THE GROUND
+        groundedSurface = hit.collider;
     }
 
     /// <summary>

@@ -16,7 +16,7 @@ public class CloudHUD : MonoBehaviour
     private CharacterController controller;
     private Font font;
     private Canvas canvas;
-    private Text speed, vertical, clearance, surface, timer, effectName, effectTime, dash, hint, controlsText, toast;
+    private Text speed, vertical, clearance, surface, timer, courseDistance, effectName, effectTime, dash, hint, controlsText, toast;
     private CloudHUDShape effectBar;
     private RectTransform effectFill;
     private float nextRefresh;
@@ -75,6 +75,7 @@ public class CloudHUD : MonoBehaviour
         RectTransform title = Panel("Session", new Vector2(.5f, 1), new Vector2(0, -24), new Vector2(340, 83));
         Label(title, "Title", "CLOUD HOP", 0, 9, 340, 32, 24, true, TextAnchor.MiddleCenter);
         timer = Label(title, "Survival time", "AIRTIME  00:00", 10, 45, 320, 24, 14, false, TextAnchor.MiddleCenter);
+        courseDistance = Label(title, "Course distance", "DISTANCE  0 m   /   BEST  0 m", 10, 65, 320, 18, 12, true, TextAnchor.MiddleCenter);
 
         RectTransform help = Panel("Controls", new Vector2(0, 0), new Vector2(24, 24), new Vector2(370, 132));
         Label(help, "Controls heading", "YOU SET THE DIRECTION", 20, 14, 335, 25, 17, true);
@@ -115,6 +116,8 @@ public class CloudHUD : MonoBehaviour
         surface.text = float.IsPositiveInfinity(GroundDistance) ? "NO SURFACE IN RANGE" : SurfaceIsHazard ? "LAVA BELOW" : "SOLID GROUND";
         surface.color = SurfaceIsHazard ? Alert : Muted;
         timer.text = $"ALIVE {Clock(player.LifeTime)}   BEST {Clock(player.BestLifeTime)}   CLOUDS {experience.CloudsThisLife}";
+        if (courseDistance != null && EndlessWorld.Instance != null)
+            courseDistance.text = $"DISTANCE  {EndlessWorld.Instance.CurrentDistance:0} m   /   BEST  {EndlessWorld.Instance.BestDistance:0} m";
         dash.text = player.DashReady ? "DASH READY  /  1" : "DASH SPENT  /  0";
         dash.color = player.DashReady ? new Color(.15f, .43f, .32f) : Muted;
         bool pad = GetComponent<PlayerInput>()?.currentControlScheme == "Gamepad";
@@ -137,7 +140,11 @@ public class CloudHUD : MonoBehaviour
         }
         toast.text = experience.MessageRemaining > 0 ? CloudStyle.NameFor(experience.LastEffect) + "  /  DASH REFILLED" : "Every cloud restores one air dash.";
         bool danger = SurfaceIsHazard && GroundDistance < 6 && velocity.y < -.5f;
+        EndlessWorld world = EndlessWorld.Instance;
         hint.text = danger ? (pad ? "LAVA BELOW  /  Hold A to glide. L3 to dash." : "LAVA BELOW  /  Hold SPACE to glide. SHIFT to dash.") :
+            world != null && world.LandingAssistPending ? world.LandingAssistCountdown > 0
+                ? $"CLOUD LIFT IN {world.LandingAssistCountdown:0.0}s  /  Jump to cancel."
+                : "CLOUD LIFT  /  Seeking a reachable cloud." :
             player.IsGliding ? "Gliding. Steer toward a platform or cloud." : "Aim your move before touching a cloud.";
         hint.color = danger ? Alert : Muted;
     }
