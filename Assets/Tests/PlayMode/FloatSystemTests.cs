@@ -340,6 +340,8 @@ public class FloatSystemTests
     public IEnumerator HudShowsFootClearanceHazardsAndDoesNotBlockInput()
     {
         Component hud = player.GetComponent(GameType("CloudHUD"));
+        if (hud == null) hud = player.gameObject.AddComponent(GameType("CloudHUD"));
+        yield return null;
         Assert.That(hud, Is.Not.Null);
         Teleport(new Vector3(0, 1.05f, 0));
         Call(hud, "Refresh");

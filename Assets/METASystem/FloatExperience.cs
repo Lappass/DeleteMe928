@@ -23,11 +23,6 @@ public class FloatExperience : MonoBehaviour
         player = GetComponent<PlayerMovement>();
     }
 
-    void Start()
-    {
-        if (GetComponent<CloudHUD>() == null) gameObject.AddComponent<CloudHUD>();
-    }
-
     void Update() => MessageRemaining = Mathf.Max(0, MessageRemaining - Time.deltaTime);
 
     public bool TryApply(Float source)
