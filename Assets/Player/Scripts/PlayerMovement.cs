@@ -43,7 +43,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float groundAcceleration = 80f;
     [SerializeField] private float airAcceleration = 22f;
     [SerializeField] private float dashSpeed = 22f;
-    [SerializeField] private float dashDuration = 0.18f;
+    [SerializeField] private float dashDuration = 0.12f;
     [SerializeField] private float wallRunSpeed = 12f;
     [SerializeField] private float wallRunMinSpeed = 6f;
     [SerializeField] private float wallStickSpeed = 3f;
